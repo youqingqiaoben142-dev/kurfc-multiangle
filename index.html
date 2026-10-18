@@ -5,7 +5,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;600&family=Noto+Sans+JP:wght@400;500;700&display=swap">
 <style>
-/* Layout: broadcast multiview monitor — one program feed large, other cameras as preview monitors, shared transport below, analyst panel (tabs) at right */
+/* Layout: broadcast multiview monitor — camera windows on a free stage (presets: big+small / equal / free), shared transport below, analyst panel (tabs) at right */
 :root{
   color-scheme:dark;
   --bg:#121012; --panel:#1a1719; --raise:#252125; --raise2:#2f2a2e; --line:#363035; --fg:#ece6e7; --muted:#a2969a;
@@ -42,64 +42,80 @@ button{cursor:pointer}
 .banner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:color-mix(in srgb,var(--enji) 35%,var(--panel));border:1px solid var(--enji-hi);border-radius:5px;padding:8px 12px}
 .banner p,.banner .bt{margin:0;flex:1;min-width:220px;line-height:1.55}
 .banner ol{margin:2px 0 0;padding-left:1.4em}
-.stage{flex:1;min-height:0;display:grid;gap:6px}
-.stage.focus{grid-template-columns:minmax(0,3fr) minmax(0,1fr);grid-template-rows:repeat(3,minmax(0,1fr))}
-.stage.focus .tile.main{grid-column:1;grid-row:1 / span 3}
-.stage.grid{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr))}
-.tile{position:relative;background:#000;border:1px solid var(--line);border-radius:5px;overflow:hidden;min-height:0;cursor:pointer}
+.stage{flex:1;min-height:0;position:relative}
+.tile{position:absolute;background:#000;border:1px solid var(--line);border-radius:5px;overflow:hidden;cursor:pointer;touch-action:pan-y}
+.tile.zoomed{touch-action:none;cursor:grab}
 .tile:not(.main):hover{border-color:var(--muted)}
-.tile.main{border-color:var(--tally);box-shadow:0 0 0 1px var(--tally);cursor:default}
-.tile.main.loaded{cursor:pointer}
-.tile video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
+.tile.main{border-color:var(--tally);box-shadow:0 0 0 1px var(--tally)}
 .tile.dragover{outline:2px dashed var(--enji-hi);outline-offset:-6px}
+.stage.moving .tile{transition:none}
+.media{position:absolute;inset:0;overflow:hidden}
+.zoomer{position:absolute;inset:0;transform-origin:0 0}
+.zoomer video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
 .ytwrap{position:absolute;inset:0;pointer-events:none;background:#000}
-.ytwrap iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+/* the iframe is taller than the visible box so YouTube's title bar and logo fall outside it */
+.ytview{position:absolute;overflow:hidden}
+.ytview iframe{position:absolute;left:0;top:-64px;width:100%;height:calc(100% + 128px);border:0}
 .tile:not(.is-yt) .ytwrap,.tile.is-yt video{display:none}
 .tile.ad .ytwrap{pointer-events:auto}
-.tally{position:absolute;left:6px;top:6px;display:flex;align-items:center;gap:6px;z-index:2;pointer-events:none;max-width:calc(100% - 12px)}
-.tally .num{font-family:var(--cond);font-weight:700;font-size:13px;min-width:20px;text-align:center;background:#000c;border:1px solid #fff4;border-radius:2px;padding:1px 5px 0}
-.tile.main .tally .num{background:var(--tally);border-color:var(--tally);color:#fff}
-.tally .lbl{font-size:12px;background:#000a;padding:2px 6px;border-radius:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tally .chip2{font-family:var(--cond);font-size:11px;letter-spacing:.08em;color:#fff;background:#000a;border:1px solid #fff3;padding:1px 5px;border-radius:2px}
+.tile.ad .ytview{overflow:visible}
+.tbar{position:absolute;left:6px;right:6px;top:6px;display:flex;align-items:center;gap:6px;z-index:3;pointer-events:none}
+.tbar>*{pointer-events:auto}
+.tbar .grip{display:none;cursor:move;background:#000c;border:1px solid #fff4;border-radius:3px;padding:0 5px;font-size:13px;line-height:18px;user-select:none;touch-action:none}
+.tbar .num{font-family:var(--cond);font-weight:700;font-size:13px;min-width:20px;text-align:center;background:#000c;border:1px solid #fff4;border-radius:2px;padding:1px 5px 0;pointer-events:none}
+.tile.main .tbar .num{background:var(--tally);border-color:var(--tally);color:#fff}
+.tbar .lbl{font-size:12px;background:#000a;padding:2px 6px;border-radius:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;pointer-events:none}
+.tbar .chip2{font-family:var(--cond);font-size:11px;letter-spacing:.08em;color:#fff;background:#000a;border:1px solid #fff3;padding:1px 5px;border-radius:2px;pointer-events:none}
+.tbar .sp{flex:1;pointer-events:none}
+.tbar .zreset{background:#000c;border:1px solid #fff4;border-radius:3px;font-size:11px;padding:1px 6px}
 .ctime{position:absolute;right:6px;bottom:6px;z-index:2;font-family:var(--mono);font-size:11px;background:#000a;padding:1px 5px;border-radius:2px;pointer-events:none;font-variant-numeric:tabular-nums}
 .tile.ad .ctime{background:var(--enji);color:#fff}
-.tile.is-yt .tally{top:auto;bottom:6px;max-width:calc(100% - 110px)} /* YouTube draws its own title bar at the top */
-.tile:not(.loaded) .ctime,.tile:not(.loaded) .tally{display:none}
+.tile.held .ctime::after{content:" ・停止中";color:var(--muted)}
+.tile:not(.loaded) .ctime,.tile:not(.loaded) .tbar .chip2{display:none}
+.rz{position:absolute;right:0;bottom:0;width:22px;height:22px;z-index:4;cursor:nwse-resize;display:none;touch-action:none;
+  background:linear-gradient(135deg,transparent 50%,#fff8 50%,#fff8 58%,transparent 58%,transparent 68%,#fff8 68%,#fff8 76%,transparent 76%)}
+.tile.main.focusmain .rz{cursor:ew-resize}
+@media (hover:hover) and (pointer:fine) and (min-width:901px){
+  .tile:hover .tbar .grip,.tile:hover .rz{display:block}
+}
 .bigplay{position:absolute;inset:0;display:grid;place-items:center;z-index:1;pointer-events:none;opacity:0;transition:opacity .25s}
 .bigplay span{width:64px;height:64px;border-radius:50%;background:#000a;display:grid;place-items:center}
 .bigplay svg{width:26px;height:26px;fill:#fff}
 .bigplay.flash{opacity:1;transition:none}
 .oor,.err{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:12px;background:#000c;z-index:1;color:var(--muted);font-size:12px;line-height:1.6}
 .tile:not(.is-oor) .oor{display:none}
-.empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:10px;text-align:center;
-  background:repeating-linear-gradient(90deg,transparent 0 calc(10% - 1px),#ffffff08 calc(10% - 1px) 10%),var(--panel)}
+.empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:10px;text-align:center;background:var(--panel);z-index:2}
 .tile.loaded .empty{display:none}
-.empty .enum{font-family:var(--cond);font-weight:600;letter-spacing:.14em;color:var(--muted);font-size:12px}
 .empty strong{font-size:14px}
-.empty .hint{color:var(--muted);font-size:11px}
 .empty .want{color:#f0c36b;font-size:12px;max-width:320px;overflow-wrap:anywhere}
-.tile:not(.main) .empty .hint{display:none}
-.ytform{display:flex;gap:4px;width:min(100%,340px)}
+.ytform{display:flex;gap:4px;width:min(100%,360px)}
 .ytform input{flex:1;min-width:0;background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:6px 8px;font-size:12px}
-.ytnote{color:var(--muted);font-size:11px;line-height:1.5;max-width:300px}
-.steps{display:none;text-align:left;margin:4px 0 6px;padding:12px 16px 12px 34px;background:#0006;border:1px solid var(--line);border-radius:6px;line-height:1.8;max-width:420px}
-.steps li::marker{font-family:var(--cond);font-weight:700;color:var(--enji-hi)}
-.stage.fresh .tile.main .steps{display:block}
-.stage.fresh .tile.main .enum,.stage.fresh .tile.main strong{display:none}
-.nudge{position:absolute;left:0;right:0;bottom:0;z-index:3;background:#000d;padding:6px;display:flex;flex-direction:column;gap:5px}
+.ytnote{color:var(--muted);font-size:11px;line-height:1.5;max-width:320px}
+.nudge{position:absolute;left:0;right:0;bottom:0;z-index:4;background:#000d;padding:6px;display:flex;flex-direction:column;gap:5px}
 .stage:not(.syncing) .nudge,.tile:not(.loaded) .nudge{display:none}
 .nudge input[type=range]{width:100%;accent-color:var(--enji-hi)}
 .nbtns{display:flex;gap:3px;flex-wrap:wrap;justify-content:center}
 .nbtns button{background:var(--raise);border:1px solid var(--line);border-radius:3px;padding:3px 7px;font-size:11px;font-family:var(--mono)}
-.stage.syncing .ctime{bottom:auto;top:6px}
+.stage.syncing .ctime{bottom:auto;top:30px}
+.stage.syncing .rz{display:none!important}
+
+/* first screen */
+.start{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px;text-align:center;border:1px dashed var(--line);border-radius:6px;
+  background:repeating-linear-gradient(90deg,transparent 0 calc(10% - 1px),#ffffff08 calc(10% - 1px) 10%),var(--panel)}
+.start.dragover{border-color:var(--enji-hi)}
+.start .steps{text-align:left;margin:0;padding:12px 18px 12px 36px;background:#0006;border:1px solid var(--line);border-radius:6px;line-height:1.9;max-width:460px}
+.start .steps li::marker{font-family:var(--cond);font-weight:700;color:var(--enji-hi)}
+.start .row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center;width:min(100%,520px)}
+.start .ytform{width:min(100%,460px)}
+.start .hint{color:var(--muted);font-size:12px}
 
 /* transport */
 .transport{grid-column:1;grid-row:3;display:flex;flex-direction:column;gap:8px;min-width:0}
-.track{position:relative;height:44px;background:var(--panel);border:1px solid var(--line);border-radius:5px;cursor:pointer;touch-action:none;user-select:none}
+.track{position:relative;height:46px;background:var(--panel);border:1px solid var(--line);border-radius:5px;cursor:pointer;touch-action:none;user-select:none}
 .track.disabled{opacity:.4;pointer-events:none}
 .track .rail{position:absolute;left:8px;right:8px;top:9px;height:8px;background:var(--raise);border-radius:4px}
 .track .fill{position:absolute;left:0;top:0;bottom:0;background:var(--enji);border-radius:4px}
-.lanes{position:absolute;left:8px;right:8px;top:22px;display:flex;flex-direction:column;gap:2px}
+.lanes{position:absolute;left:8px;right:8px;top:21px;display:flex;flex-direction:column;gap:1px}
 .lane{position:relative;height:3px}
 .lane i{position:absolute;top:0;bottom:0;background:var(--muted);opacity:.55;border-radius:2px}
 .lane.main i{background:var(--tally);opacity:.9}
@@ -108,14 +124,16 @@ button{cursor:pointer}
 .head{position:absolute;top:2px;bottom:2px;width:2px;margin-left:-1px;background:#fff;pointer-events:none;border-radius:1px}
 .track .inner{position:absolute;left:8px;right:8px;top:0;bottom:0}
 .tip{position:absolute;bottom:calc(100% + 6px);transform:translateX(-50%);background:var(--raise2);border:1px solid var(--line);border-radius:4px;padding:2px 6px;font-family:var(--mono);font-size:11px;pointer-events:none;white-space:nowrap;z-index:5}
-.ctrls{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ctrls{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.ctrls .btn{padding:7px 10px}
 .play{width:48px;height:38px;display:grid;place-items:center;background:var(--enji);border:1px solid var(--enji-hi);border-radius:5px;color:#fff}
 .play svg{width:18px;height:18px;fill:currentColor}
-.tc{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:16px;padding:0 6px;white-space:nowrap}
+.tc{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:15px;padding:0 4px;white-space:nowrap}
 .tc small{color:var(--muted);font-size:12px}
 .ctrls .sp{flex:1}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:5px;overflow:hidden}
-.seg button{background:var(--raise);border:0;border-left:1px solid var(--line);padding:0 9px;min-height:34px;font-family:var(--mono);font-size:12px}
+.seg button{background:var(--raise);border:0;border-left:1px solid var(--line);padding:0 8px;min-height:34px;font-size:12px;white-space:nowrap}
+.seg.mono button{font-family:var(--mono)}
 .seg button:first-child{border-left:0}
 .seg button.on{background:var(--enji);color:#fff}
 
@@ -129,7 +147,7 @@ button{cursor:pointer}
 .pane h3{margin:4px 0 0;font-family:var(--cond);font-weight:600;font-size:12px;letter-spacing:.14em;color:var(--muted)}
 .arow{display:grid;grid-template-columns:22px minmax(0,1fr);gap:4px 8px;padding:8px 0;border-top:1px solid #ffffff0d}
 .arow:first-child{border-top:0}
-.arow .num{font-family:var(--cond);font-weight:700;text-align:center;border:1px solid var(--line);border-radius:2px;height:20px;line-height:19px}
+.arow .num{font-family:var(--cond);font-weight:700;text-align:center;border:1px solid var(--line);border-radius:2px;height:20px;line-height:19px;background:none;padding:0;color:var(--fg)}
 .arow.main .num{background:var(--tally);border-color:var(--tally);color:#fff}
 .arow input.alabel{background:transparent;border:1px solid transparent;border-radius:3px;padding:1px 4px;min-width:0;width:100%;font-weight:500}
 .arow input.alabel:hover,.arow input.alabel:focus{border-color:var(--line);background:var(--bg)}
@@ -139,6 +157,7 @@ button{cursor:pointer}
 .arow .offs input{width:58px;background:var(--bg);border:1px solid var(--line);border-radius:3px;padding:1px 4px;font-family:var(--mono);font-size:11px;text-align:right}
 .arow .offs .k{color:var(--muted);font-size:11px;margin-right:2px}
 .arow .acts{grid-column:2;display:flex;gap:4px;flex-wrap:wrap}
+.addrow{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding-top:8px;border-top:1px solid #ffffff0d;color:var(--muted);font-size:12px}
 .tags{display:grid;grid-template-columns:repeat(2,1fr);gap:5px}
 .tags button{background:var(--raise);border:1px solid var(--line);border-left:4px solid var(--c);border-radius:4px;padding:8px 9px;font-size:13px;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:4px;white-space:nowrap}
 .tags button:hover{background:var(--raise2)}
@@ -182,16 +201,11 @@ textarea.copybox{width:100%;height:80px;background:var(--bg);border:1px solid va
   html,body{height:auto}
   .app{height:auto;grid-template-columns:minmax(0,1fr);grid-template-rows:auto}
   .stagewrap,.transport,.panel{grid-column:1;grid-row:auto}
-  .stage.focus{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:auto auto}
-  .stage.focus .tile.main{grid-column:1 / -1;grid-row:1}
-  .stage.grid{grid-template-rows:auto auto}
-  .tile{aspect-ratio:16/9;max-width:100%}
-  .stage.fresh .tile.main{aspect-ratio:auto;min-height:340px}
+  .stage{flex:none}
+  .stage.fresh{height:auto!important;min-height:420px}
   .panel{overflow:visible}
   .pane{overflow:visible}
-  .tile:not(.main) .empty{gap:2px;padding:4px}
-  .tile:not(.main) .empty :is(.pick,.ytform,.ytnote,.want,.hint){display:none}
-  .tile:not(.main) .empty strong{font-size:12px}
+  #layoutSeg button[data-l="custom"]{display:none}
 }
 @media (prefers-reduced-motion:reduce){.toast,.bigplay{transition:none}}
 </style>
@@ -221,7 +235,18 @@ textarea.copybox{width:100%;height:80px;background:var(--bg);border:1px solid va
       <button class="btn" id="reelNext">次へ <kbd>N</kbd></button>
       <button class="btn" id="reelStop">終了</button>
     </div>
-    <main class="stage focus fresh" id="stage"></main>
+    <main class="stage fresh" id="stage">
+      <div class="start" id="start">
+        <ol class="steps">
+          <li><b>動画を入れる</b>：ファイルをここにドロップ、またはYouTubeのURLを貼り付け（何本でも、最大6本）</li>
+          <li><b>同期を合わせる</b>：各カメラを同じ瞬間（キックオフの笛など）にそろえる</li>
+          <li><b>再生してタグ</b>：<kbd>Shift</kbd>+数字で場面に印を付けて、あとで見返す</li>
+        </ol>
+        <div class="row"><button class="btn pri" id="startFile">動画ファイルを選ぶ</button></div>
+        <form class="ytform" id="startYt"><input type="text" id="startYtUrl" placeholder="YouTubeのURL（複数ならスペースか改行で区切る）" aria-label="YouTubeのURL"><button class="btn" type="submit">読み込む</button></form>
+        <span class="hint" id="startHint">動画ファイルはこの枠にドロップできます</span>
+      </div>
+    </main>
   </div>
 
   <section class="transport">
@@ -233,16 +258,19 @@ textarea.copybox{width:100%;height:80px;background:var(--bg);border:1px solid va
     </div>
     <div class="ctrls">
       <button class="play" id="play" aria-label="再生"><svg viewBox="0 0 16 16" id="playIcon"><path d="M3 1.5v13l11-6.5z"/></svg></button>
-      <button class="btn" id="replay" title="5秒前からもう一度（R）">↺ 5秒前から</button>
+      <button class="btn" id="replay" title="5秒前からもう一度（R）">↺ 5秒前</button>
       <button class="btn" data-seek="-5">−5秒</button>
-      <button class="btn" data-frame="-1">−1コマ</button>
-      <button class="btn" data-frame="1">+1コマ</button>
+      <button class="btn" data-frame="-1" title="1コマ戻す（,）">−コマ</button>
+      <button class="btn" data-frame="1" title="1コマ進める（.）">+コマ</button>
       <button class="btn" data-seek="5">+5秒</button>
       <div class="tc" id="tc">0:00.0 <small>/ 0:00</small></div>
       <div class="sp"></div>
-      <div class="seg" id="rateSeg" role="group" aria-label="再生速度"></div>
-      <button class="btn" id="mute">音あり</button>
-      <button class="btn" id="layout">2×2表示</button>
+      <div class="seg mono" id="rateSeg" role="group" aria-label="再生速度"></div>
+      <div class="seg" id="layoutSeg" role="group" aria-label="並べ方">
+        <button data-l="focus" title="1つを大きく（G）">大＋小</button><button data-l="grid" title="全部同じ大きさ（G）">均等</button><button data-l="custom" title="枠をドラッグで動かす・角で大きさを変える">自由</button>
+      </div>
+      <button class="btn" id="light" title="メインだけ再生して通信を軽くする">軽量</button>
+      <button class="btn" id="mute" title="消音（M）">音</button>
       <button class="btn" id="fs">全画面</button>
     </div>
   </section>
@@ -250,7 +278,7 @@ textarea.copybox{width:100%;height:80px;background:var(--bg);border:1px solid va
   <aside class="panel">
     <div class="tabs" role="tablist">
       <button data-tab="tags" role="tab">タグ<span class="cnt" id="tagCnt">0</span></button>
-      <button data-tab="angles" role="tab">アングル</button>
+      <button data-tab="angles" role="tab">アングル<span class="cnt" id="angCnt">0</span></button>
       <button data-tab="help" role="tab">使い方</button>
     </div>
     <div class="pane" data-pane="tags">
@@ -266,21 +294,28 @@ textarea.copybox{width:100%;height:80px;background:var(--bg);border:1px solid va
     </div>
     <div class="pane" data-pane="angles">
       <div id="alist"></div>
-      <p class="mempty">ずれ補正の数字は、そのアングルが基準より何秒先に進んでいるか。直接入力もできます。</p>
+      <div class="addrow" id="addrow">アングルを追加：<button class="btn sm" id="addFile">ファイル</button><button class="btn sm" id="addYt">YouTube</button><span id="addMax"></span></div>
+      <p class="mempty">ずれ補正の数字は、そのアングルが基準より何秒先に進んでいるか。直接入力もできます。番号を押すとメインになります。</p>
     </div>
     <div class="pane" data-pane="help">
       <h3>はじめかた</h3>
       <ol class="howto">
-        <li>動画を入れる：ファイルを画面にドロップするか、YouTubeのURLをコピーして <kbd>Ctrl</kbd>+<kbd>V</kbd>（何本でもまとめて貼れます）</li>
+        <li>動画を入れる：ファイルを画面にドロップするか、YouTubeのURLをコピーして <kbd>Ctrl</kbd>+<kbd>V</kbd>（1〜6本。あとから足したり外したりできます）</li>
         <li>「同期を合わせる」で、各カメラを同じ瞬間（キックオフの笛など）に揃える</li>
         <li>再生しながら、場面ごとにタグを付ける（<kbd>Shift</kbd>+数字）</li>
         <li>タグの一覧から場面に飛ぶか、「連続再生」でタグの場面だけを順に見る</li>
         <li>「共有リンクをコピー」で部員に送る（YouTubeの動画とズレ・タグがそのまま開きます）</li>
       </ol>
+      <h3>並べ方と大きさ</h3>
+      <ol class="howto">
+        <li>「大＋小」「均等」「自由」で並べ方を切り替え（<kbd>G</kbd>）</li>
+        <li>枠にマウスを乗せると、左上に <b>⠿</b>（ドラッグで移動）、右下に角（ドラッグで大きさを変更）が出ます。「大＋小」のときは大きい枠の角で左右の比率を変えられます</li>
+        <li>映像の拡大：<kbd>Ctrl</kbd>+ホイール（ノートPCは2本指でピンチ、スマホもピンチ）。拡大中はドラッグで見る場所を動かせます。「1×」で元に戻ります</li>
+      </ol>
       <h3>ショートカット</h3>
       <dl class="keys">
         <dt><kbd>Space</kbd> / <kbd>K</kbd></dt><dd>再生／停止（メインの映像をクリックでも）</dd>
-        <dt><kbd>1</kbd>〜<kbd>4</kbd></dt><dd>メインのアングルを切り替え（小さい映像をクリックでも）</dd>
+        <dt><kbd>1</kbd>〜<kbd>6</kbd></dt><dd>メインのアングルを切り替え（ほかの映像をクリックでも）</dd>
         <dt><kbd>R</kbd></dt><dd>5秒前からもう一度</dd>
         <dt><kbd>←</kbd><kbd>→</kbd></dt><dd>5秒戻す／進める（<kbd>Shift</kbd>で1秒）</dd>
         <dt><kbd>J</kbd> <kbd>L</kbd></dt><dd>10秒戻す／進める</dd>
@@ -289,19 +324,20 @@ textarea.copybox{width:100%;height:80px;background:var(--bg);border:1px solid va
         <dt><kbd>[</kbd><kbd>]</kbd></dt><dd>再生速度を下げる／上げる</dd>
         <dt><kbd>Shift</kbd>+<kbd>1</kbd>〜<kbd>6</kbd></dt><dd>タグを付ける（<kbd>B</kbd>でメモ）</dd>
         <dt><kbd>N</kbd> <kbd>P</kbd></dt><dd>連続再生で次／前のタグへ</dd>
-        <dt><kbd>G</kbd> <kbd>S</kbd></dt><dd>2×2表示の切り替え／同期を合わせる</dd>
+        <dt><kbd>G</kbd> <kbd>S</kbd></dt><dd>並べ方の切り替え／同期を合わせる</dd>
+        <dt><kbd>0</kbd></dt><dd>メインの映像の拡大を元に戻す</dd>
         <dt><kbd>M</kbd> <kbd>F</kbd></dt><dd>消音／全画面（ダブルクリックでも全画面）</dd>
         <dt><kbd>Esc</kbd></dt><dd>連続再生・同期合わせ・入力欄を閉じる</dd>
       </dl>
-      <h3>うまくいかないとき</h3>
-      <p class="mempty">動画が映らない：H.265(HEVC)はH.264のMP4に変換。YouTubeが映らない：「非公開」や埋め込み禁止の動画は使えません。パソコンのファイルを直接開いたときはYouTubeは使えないので、「マルチアングル起動.bat」かWeb版から開いてください。</p>
+      <h3>うまく流れないとき</h3>
+      <p class="mempty">通信が追いつかないと止まりやすくなります。「軽量」をオンにすると、メインだけを再生し、ほかのアングルは止めた絵で待機します（切り替えると、その場面から再生）。スマホでは最初からオンです。<br>動画が映らない：H.265(HEVC)はH.264のMP4に変換。YouTubeが映らない：「非公開」や埋め込み禁止の動画は使えません。パソコンのファイルを直接開いたときはYouTubeは使えないので、「マルチアングル起動.bat」かWeb版から開いてください。</p>
     </div>
   </aside>
 </div>
 <div class="scrim" id="ytPop" hidden>
   <div class="pop" role="dialog" aria-labelledby="ytPopTitle">
     <h2 id="ytPopTitle">YouTubeの動画を追加</h2>
-    <p>URLを1行に1つずつ貼り付けてください。空いている枠に順番に入ります（最大4本）。</p>
+    <p>URLを1行に1つずつ貼り付けてください。アングルとして順番に追加されます（全部で最大6本）。</p>
     <textarea id="ytText" placeholder="https://youtu.be/...&#10;https://www.youtube.com/watch?v=..."></textarea>
     <div class="row"><button class="btn" id="ytCancel">やめる</button><button class="btn pri" id="ytOk">追加する</button></div>
   </div>
@@ -310,7 +346,8 @@ textarea.copybox{width:100%;height:80px;background:var(--bg);border:1px solid va
 
 <script>
 (() => {
-const LABELS = ['スタンド中央', 'インゴール裏', 'タッチライン', 'ドローン'];
+const MAX = 6;
+const LABELS = ['スタンド中央', 'インゴール裏', 'タッチライン', 'ドローン', 'アングル5', 'アングル6'];
 const TAGS = [
   {k:'try', name:'トライ', c:'#d9a441'}, {k:'scrum', name:'スクラム', c:'#5b8fd6'},
   {k:'lineout', name:'ラインアウト', c:'#4fae8b'}, {k:'pen', name:'ペナルティ', c:'#e04452'},
@@ -321,25 +358,18 @@ const RATES = [0.25, 0.5, 0.75, 1, 1.5, 2];
 const FRAME = 1 / 30;
 const PAGES_URL = 'https://youqingqiaoben142-dev.github.io/kurfc-multiangle/';
 const IS_FILE = location.protocol === 'file:';
+const PHONE = window.matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 820;
 const $ = s => document.querySelector(s);
 const stage = $('#stage');
 
-const S = {
-  angles: LABELS.map((label, i) => ({i, label, kind:null, url:null, ytid:null, name:'', size:0, off:0, dur:0, ready:false, err:false, want:null})),
-  main: 0, layout: 'focus', playing: false, t: 0, rate: 1, muted: false, sync: false, markers: [], syncBackup: null,
-  reel: null, filter: 'all', pending: {}, shared: null
-};
-const tiles = [], videos = [], srcs = [];
-
 /* ---------- small helpers ---------- */
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-const loaded = () => S.angles.filter(a => a.ready);
 const now = () => performance.now();
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 };
-const prefs = Object.assign({pre: 3, post: 5, tab: null}, store.get('mav:prefs', {}));
+const prefs = Object.assign({pre: 3, post: 5, tab: null, split: 72, layout: 'focus', custom: {}, light: null}, store.get('mav:prefs', {}));
 const savePrefs = () => store.set('mav:prefs', prefs);
 function fmt(t, dec = true) {
   if (!isFinite(t)) t = 0;
@@ -349,19 +379,12 @@ function fmt(t, dec = true) {
   const core = h ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${m}:${String(s).padStart(2,'0')}`;
   return (neg ? '-' : '') + core + (dec ? '.' + ds : '');
 }
-function range() {
-  const L = loaded();
-  if (!L.length) return [0, 0];
-  return [Math.min(...L.map(a => -a.off)), Math.max(...L.map(a => a.dur - a.off))];
-}
 let toastTimer;
 function toast(msg, ms = 2000) {
   const el = $('#toast'); el.textContent = msg; el.classList.add('show');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), ms);
 }
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const fileKey = a => a.kind === 'yt' ? 'yt:' + a.ytid : a.name + '|' + a.size;
-const setKey = () => loaded().map(fileKey).sort().join('//');
 function parseYouTube(text) {
   if (!text) return null;
   text = text.trim();
@@ -377,12 +400,32 @@ function parseYouTube(text) {
 }
 const allYouTubeIds = text => (String(text || '').match(/\S+/g) || []).map(parseYouTube).filter(Boolean);
 const wide = () => window.matchMedia('(min-width: 901px)').matches;
+const videoFiles = list => [...list].filter(f => f.type.startsWith('video/') || /\.(mp4|mov|m4v|webm|mkv)$/i.test(f.name));
+
+/* ---------- state ---------- */
+const S = {
+  angles: [], main: 0, layout: prefs.layout, playing: false, t: 0, rate: 1, muted: false,
+  sync: false, markers: [], syncBackup: null, reel: null, filter: 'all', shared: false,
+  light: prefs.light == null ? PHONE : prefs.light, holdAt: 0, stalls: [], stallHinted: false
+};
+let UID = 0, ZTOP = 1;
+const mainA = () => S.angles[S.main];
+const loaded = () => S.angles.filter(a => a.ready);
+const idx = a => S.angles.indexOf(a);
+const fileKey = a => a.kind === 'yt' ? 'yt:' + a.ytid : a.name + '|' + a.size;
+const setKey = () => loaded().map(fileKey).sort().join('//');
+function range() {
+  const L = loaded();
+  if (!L.length) return [0, 0];
+  return [Math.min(...L.map(a => -a.off)), Math.max(...L.map(a => a.dur - a.off))];
+}
 
 /* ---------- playback sources (local file / YouTube) ---------- */
 class FileSrc {
   constructor(v) { this.v = v; this.fine = true; this.inAd = false; }
   get time() { return this.v.currentTime; } set time(x) { this.v.currentTime = x; }
   get paused() { return this.v.paused; } get seeking() { return this.v.seeking; }
+  get buffering() { return !this.v.paused && (this.v.seeking || this.v.readyState < 3); }
   play() { const p = this.v.play(); if (p) p.catch(() => {}); }
   pause() { this.v.pause(); }
   setRate(r) { if (this.v.playbackRate !== r) this.v.playbackRate = r; }
@@ -393,11 +436,12 @@ class YTSrc {
   constructor(player) {
     this.p = player; this.fine = false; this.want = false; this.state = -1;
     this.target = 0; this.lastSeek = -1e9; this.lastFire = -1e9; this.timer = null; this.rate = 1;
-    this.good = 0; this.playAt = -1e9;
+    this.good = 0; this.playAt = -1e9; this.seekStart = 0; this.bufMs = 700; this.corr = 0;
   }
   // an ad shows as "unstarted" (-1) while we want playback; during it the player reports the ad's time and ignores seeks
   get adLike() { return this.want && this.state === -1; }
-  get inAd() { return this.adLike && now() - this.playAt > 1200; }
+  get inAd() { return this.adLike && now() - this.playAt > 1500; }
+  get buffering() { return this.want && (this.state === 3 || this.state === -1 || this.state === 5); }
   get time() {
     if (now() - this.lastSeek < 500) return this.target;
     if (this.adLike) return this.good;
@@ -406,7 +450,7 @@ class YTSrc {
     return v;
   }
   set time(x) {
-    this.target = x; this.lastSeek = now();
+    this.target = x; this.lastSeek = now(); this.seekStart = now();
     if (this.timer) return;
     const fire = () => { this.timer = null; this.lastFire = now(); try { this.p.seekTo(this.target, true); } catch (e) {} };
     if (now() - this.lastFire > 150) fire(); else this.timer = setTimeout(fire, 150);
@@ -414,15 +458,31 @@ class YTSrc {
   get paused() { return !this.want; }
   get seeking() { return this.state === 3 || this.adLike || now() - this.lastSeek < 900; }
   play() { if (!this.want) this.playAt = now(); this.want = true; try { this.p.playVideo(); } catch (e) {} }
-  pause() { this.want = false; try { this.p.pauseVideo(); } catch (e) {} }
-  setRate(r) {
-    let rates = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
-    try { const a = this.p.getAvailablePlaybackRates(); if (a && a.length) rates = a; } catch (e) {}
-    const rr = rates.reduce((b, x) => Math.abs(x - r) < Math.abs(b - r) ? x : b, rates[0]);
+  pause() { this.want = false; this.corr = 0; try { this.p.pauseVideo(); } catch (e) {} }
+  rates() {
+    let r = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+    try { const a = this.p.getAvailablePlaybackRates(); if (a && a.length) r = a.slice().sort((x, y) => x - y); } catch (e) {}
+    return r;
+  }
+  // step: -1 / +1 picks the neighbouring speed (e.g. 0.75 / 1.25) to drift back into sync without a jump
+  setRate(r, step = 0) {
+    const rs = this.rates();
+    let k = rs.reduce((b, x, i) => Math.abs(x - r) < Math.abs(rs[b] - r) ? i : b, 0);
+    k = clamp(k + step, 0, rs.length - 1);
+    const rr = rs[k];
     if (rr !== this.rate) { this.rate = rr; try { this.p.setPlaybackRate(rr); } catch (e) {} }
   }
   setMuted(m) { try { m ? this.p.mute() : this.p.unMute(); } catch (e) {} }
+  onState(s) {
+    this.state = s;
+    if (s === 1 && this.seekStart) { this.bufMs = this.bufMs * 0.6 + clamp(now() - this.seekStart, 100, 4000) * 0.4; this.seekStart = 0; }
+  }
   destroy() { clearTimeout(this.timer); try { this.p.destroy(); } catch (e) {} }
+}
+function hideCaptions(p) {
+  try { p.unloadModule('captions'); } catch (e) {}
+  try { p.unloadModule('cc'); } catch (e) {}
+  try { p.setOption('captions', 'track', {}); } catch (e) {}
 }
 
 let ytPromise = null;
@@ -460,8 +520,8 @@ function save() {
 }
 function saveLast() {
   const slots = S.angles.map(a => a.kind === 'yt' ? {k: 'y', id: a.ytid, label: a.label}
-    : a.kind === 'file' ? {k: 'f', name: a.name, label: a.label} : null);
-  if (slots.some(Boolean)) store.set('mav:last', {slots, at: Date.now()});
+    : a.kind === 'file' ? {k: 'f', name: a.name, label: a.label} : null).filter(Boolean);
+  if (slots.length) store.set('mav:last', {slots, at: Date.now()});
 }
 function restore() {
   const d = store.get('mav:' + setKey(), null);
@@ -475,253 +535,413 @@ function restore() {
   return true;
 }
 
-/* ---------- tiles ---------- */
+/* ---------- angles (tiles) ---------- */
 const PLAY_SVG = '<path d="M3 1.5v13l11-6.5z"/>', PAUSE_SVG = '<path d="M3 2h3.5v12H3zM9.5 2H13v12H9.5z"/>';
-S.angles.forEach((a, i) => {
+function newAngle(label) {
+  if (S.angles.length >= MAX) { toast(`アングルは${MAX}本までです`); return null; }
+  const a = {uid: ++UID, label: label || LABELS[S.angles.length] || `アングル${S.angles.length + 1}`,
+    kind: null, url: null, ytid: null, name: '', size: 0, off: 0, dur: 0, ready: false, err: false, want: null,
+    rect: null, zi: ++ZTOP, zoom: {s: 1, x: 0, y: 0}, pending: null};
+  buildTile(a);
+  S.angles.push(a);
+  return a;
+}
+function buildTile(a) {
   const el = document.createElement('div');
-  el.className = 'tile'; el.dataset.i = i;
+  el.className = 'tile';
   el.innerHTML = `
-    <video playsinline preload="auto" muted></video>
-    <div class="ytwrap"><div id="yt${i}"></div></div>
-    <div class="tally"><span class="num">${i+1}</span><span class="lbl"></span><span class="chip2 yt" hidden>YouTube</span><span class="chip2 aud" hidden>音声</span></div>
+    <div class="media"><div class="zoomer"><video playsinline preload="auto" muted></video><div class="ytwrap"><div class="ytview"><div id="yt${a.uid}"></div></div></div></div></div>
+    <div class="tbar"><span class="grip" title="ドラッグで移動">⠿</span><span class="num"></span><span class="lbl"></span><span class="chip2 yt" hidden>YouTube</span><span class="chip2 aud" hidden>音声</span><span class="sp"></span><button class="zreset" hidden title="拡大を元に戻す（0）">1×</button></div>
     <div class="ctime"></div>
     <div class="bigplay"><span><svg viewBox="0 0 16 16"></svg></span></div>
     <div class="oor">このアングルはこの時間帯の映像がありません</div>
     <div class="err" hidden></div>
     <div class="empty">
-      <ol class="steps">
-        <li><b>動画を入れる</b>：ファイルをここにドロップ、またはYouTubeのURLをコピーして <kbd>Ctrl</kbd>+<kbd>V</kbd></li>
-        <li><b>同期を合わせる</b>：各カメラを同じ瞬間にそろえる</li>
-        <li><b>再生してタグ</b>：<kbd>Shift</kbd>+数字で場面に印を付ける</li>
-      </ol>
-      <span class="enum">CAM ${i+1}</span><strong class="elbl"></strong>
+      <strong class="elbl"></strong>
       <span class="want" hidden></span>
       <button class="btn pick">動画ファイルを選ぶ</button>
-      ${IS_FILE
-        ? '<span class="ytnote">YouTubeの動画は「マルチアングル起動.bat」かWeb版から開くと使えます</span>'
-        : `<form class="ytform"><input type="url" id="yturl${i}" placeholder="YouTubeのURL" aria-label="アングル${i+1}のYouTubeのURL"><button class="btn" type="submit">読み込む</button></form>`}
-      <span class="hint">動画ファイルはここにドロップ</span>
+      ${IS_FILE ? '' : `<form class="ytform"><input type="text" placeholder="YouTubeのURL" aria-label="YouTubeのURL"><button class="btn" type="submit">読み込む</button></form>`}
     </div>
     <div class="nudge">
-      <input type="range" class="scrub" id="scrub${i}" min="0" max="1" step="0.01" value="0" aria-label="アングル${i+1}の位置">
+      <input type="range" class="scrub" min="0" max="1" step="0.01" value="0" aria-label="この映像の位置">
       <div class="nbtns">
         <button data-d="-1">−1秒</button><button data-d="-0.1">−0.1</button><button data-d="${-FRAME}">−1コマ</button>
         <button data-d="play">▶/❚❚</button>
         <button data-d="${FRAME}">+1コマ</button><button data-d="0.1">+0.1</button><button data-d="1">+1秒</button>
       </div>
     </div>
-    <input type="file" accept="video/*" hidden id="file${i}">`;
-  const v = el.querySelector('video');
+    <div class="rz" title="ドラッグで大きさを変更"></div>
+    <input type="file" accept="video/*" hidden>`;
+  a.el = el; a.v = el.querySelector('video'); a.src = new FileSrc(a.v);
+  a.zoomer = el.querySelector('.zoomer'); a.ytview = el.querySelector('.ytview');
   const input = el.querySelector('input[type=file]');
+  a.fileInput = input;
   el.querySelector('.pick').addEventListener('click', e => { e.stopPropagation(); input.click(); });
-  input.addEventListener('change', () => { if (input.files[0]) loadFile(i, input.files[0]); input.value = ''; });
+  input.addEventListener('change', () => { if (input.files[0]) loadFile(a, input.files[0]); input.value = ''; });
   const form = el.querySelector('.ytform');
   if (form) form.addEventListener('submit', e => {
     e.preventDefault(); e.stopPropagation();
-    const inp = form.querySelector('input');
-    const ids = allYouTubeIds(inp.value);
+    const inp = form.querySelector('input'); const ids = allYouTubeIds(inp.value);
     if (!ids.length) { toast('YouTubeの動画のURLを貼り付けてください'); return; }
-    loadYouTube(i, ids[0]); addYouTubeIds(ids.slice(1));
-    inp.value = '';
+    loadYouTube(a, ids[0]); addYouTubeIds(ids.slice(1)); inp.value = '';
   });
-  el.addEventListener('click', e => {
-    if (e.target.closest('button,input,form,a')) return;
-    if (!S.angles[i].ready) { if (S.main !== i) setMain(i); return; }
-    if (S.sync) { setMain(i); return; }
-    if (i === S.main) { togglePlay(); flashPlay(i); } else setMain(i);
-  });
-  el.addEventListener('dblclick', e => { if (i === S.main && S.angles[i].ready && !S.sync) toggleFs(); });
+  el.querySelector('.zreset').addEventListener('click', e => { e.stopPropagation(); setZoom(a, 1, 0, 0); });
   el.querySelectorAll('.nbtns button').forEach(b => b.addEventListener('click', e => {
     e.stopPropagation();
-    if (b.dataset.d === 'play') { const s = srcs[i]; s.paused ? s.play() : s.pause(); }
-    else nudgeTile(i, +b.dataset.d);
+    if (b.dataset.d === 'play') { a.src.paused ? a.src.play() : a.src.pause(); }
+    else nudgeTile(a, +b.dataset.d);
   }));
   const scrub = el.querySelector('.scrub');
-  scrub.addEventListener('input', () => { srcs[i].time = +scrub.value; });
+  scrub.addEventListener('input', () => { a.src.time = +scrub.value; });
+  /* select / play by click; zoom & pan by pinch / ctrl+wheel / drag */
+  el.addEventListener('click', e => {
+    if (a.moved || e.target.closest('button,input,form,.rz,.grip,.nudge')) return;
+    const i = idx(a);
+    if (!a.ready) { if (S.main !== i) setMain(i); return; }
+    if (S.sync) { setMain(i); return; }
+    if (i === S.main) { togglePlay(); flashPlay(a); } else setMain(i);
+  });
+  el.addEventListener('dblclick', e => { if (idx(a) === S.main && a.ready && !S.sync && !e.target.closest('button,input,.nudge')) toggleFs(); });
+  el.addEventListener('wheel', e => {
+    if (!(e.ctrlKey || e.metaKey) || !a.ready) return;
+    e.preventDefault(); e.stopPropagation();
+    const r = el.getBoundingClientRect();
+    zoomAt(a, Math.exp(-e.deltaY * 0.0025), e.clientX - r.left, e.clientY - r.top);
+  }, {passive: false});
+  const ptrs = new Map(); let pinch = null, pan = null;
+  el.addEventListener('pointerdown', e => {
+    if (e.target.closest('button,input,form,select,.rz,.grip,.nudge')) return;
+    a.moved = false;
+    ptrs.set(e.pointerId, {x: e.clientX, y: e.clientY});
+    try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    if (ptrs.size === 2) {
+      const [p1, p2] = [...ptrs.values()], r = el.getBoundingClientRect();
+      pinch = {d: Math.hypot(p1.x - p2.x, p1.y - p2.y), s: a.zoom.s, cx: (p1.x + p2.x) / 2 - r.left, cy: (p1.y + p2.y) / 2 - r.top};
+      pan = null;
+    } else pan = {x: e.clientX, y: e.clientY, zx: a.zoom.x, zy: a.zoom.y};
+  });
+  el.addEventListener('pointermove', e => {
+    if (!ptrs.has(e.pointerId)) return;
+    ptrs.set(e.pointerId, {x: e.clientX, y: e.clientY});
+    if (pinch && ptrs.size >= 2) {
+      const [p1, p2] = [...ptrs.values()];
+      const d = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+      a.moved = true;
+      zoomAt(a, (pinch.s * d / pinch.d) / a.zoom.s, pinch.cx, pinch.cy);
+    } else if (pan && a.zoom.s > 1) {
+      const dx = e.clientX - pan.x, dy = e.clientY - pan.y;
+      if (Math.abs(dx) + Math.abs(dy) > 4) a.moved = true;
+      if (a.moved) setZoom(a, a.zoom.s, pan.zx + dx, pan.zy + dy);
+    }
+  });
+  const up = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null; if (!ptrs.size) pan = null; };
+  el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+  /* move by the grip, resize by the corner */
+  el.querySelector('.grip').addEventListener('pointerdown', e => startMove(e, a, 'move'));
+  el.querySelector('.rz').addEventListener('pointerdown', e => startMove(e, a, 'size'));
+  /* drop a file on a tile to put it there */
   el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('dragover'); });
   el.addEventListener('dragleave', () => el.classList.remove('dragover'));
   el.addEventListener('drop', e => {
     e.preventDefault(); e.stopPropagation(); el.classList.remove('dragover');
     const files = videoFiles(e.dataTransfer.files);
-    if (files.length === 1) loadFile(i, files[0]);
-    else if (files.length) fillSlots(files, i);
-    else { const ids = allYouTubeIds(e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain')); if (ids.length) { loadYouTube(i, ids[0]); addYouTubeIds(ids.slice(1)); } }
+    if (files.length) { loadFile(a, files[0]); addFiles(files.slice(1)); return; }
+    const ids = allYouTubeIds(e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain'));
+    if (ids.length) { loadYouTube(a, ids[0]); addYouTubeIds(ids.slice(1)); }
   });
-  v.addEventListener('loadedmetadata', () => {
-    const A = S.angles[i]; if (A.kind !== 'file') return;
-    A.dur = v.duration; onLoaded(i);
+  a.v.addEventListener('loadedmetadata', () => { if (a.kind !== 'file') return; a.dur = a.v.duration; onLoaded(a); });
+  a.v.addEventListener('error', () => {
+    if (!a.v.getAttribute('src') || a.kind !== 'file') return;
+    showError(a, 'このファイルはブラウザで再生できません。<br>H.265(HEVC)の場合はH.264のMP4に変換してください。');
   });
-  v.addEventListener('error', () => {
-    if (!v.getAttribute('src') || S.angles[i].kind !== 'file') return;
-    showError(i, 'このファイルはブラウザで再生できません。<br>H.265(HEVC)の場合はH.264のMP4に変換してください。');
-  });
-  stage.appendChild(el); tiles.push(el); videos.push(v); srcs.push(new FileSrc(v));
-});
-const videoFiles = list => [...list].filter(f => f.type.startsWith('video/') || /\.(mp4|mov|m4v|webm|mkv)$/i.test(f.name));
-function flashPlay(i) {
-  const b = tiles[i].querySelector('.bigplay');
+  if (window.ResizeObserver) new ResizeObserver(() => { fitYT(a); setZoom(a, a.zoom.s, a.zoom.x, a.zoom.y); }).observe(el);
+  stage.appendChild(el);
+}
+/* keep the YouTube picture exactly inside the tile (16:9 contain) and push YouTube's own bars outside */
+function fitYT(a) {
+  const W = a.el.clientWidth, H = a.el.clientHeight; if (!W || !H) return;
+  const vw = Math.min(W, H * 16 / 9), vh = vw * 9 / 16;
+  Object.assign(a.ytview.style, {left: (W - vw) / 2 + 'px', top: (H - vh) / 2 + 'px', width: vw + 'px', height: vh + 'px'});
+}
+function setZoom(a, s, x, y) {
+  const W = a.el.clientWidth, H = a.el.clientHeight;
+  s = clamp(s, 1, 6);
+  x = clamp(x, W - W * s, 0); y = clamp(y, H - H * s, 0);
+  a.zoom = {s, x, y};
+  a.zoomer.style.transform = s === 1 ? '' : `translate(${x}px,${y}px) scale(${s})`;
+  a.el.querySelector('.zreset').hidden = s === 1;
+  a.el.classList.toggle('zoomed', s > 1);
+}
+function zoomAt(a, factor, mx, my) {
+  const z = a.zoom, s = clamp(z.s * factor, 1, 6), k = s / z.s;
+  setZoom(a, s, mx - (mx - z.x) * k, my - (my - z.y) * k);
+}
+function flashPlay(a) {
+  const b = a.el.querySelector('.bigplay');
   b.querySelector('svg').innerHTML = S.playing ? PLAY_SVG : PAUSE_SVG;
   b.classList.add('flash'); requestAnimationFrame(() => requestAnimationFrame(() => b.classList.remove('flash')));
 }
 
-function onLoaded(i) {
-  const A = S.angles[i]; A.ready = true; A.err = false;
+function onLoaded(a) {
+  a.ready = true; a.err = false;
   const restored = restore();
-  // a shared link or "resume" may carry this slot's offset and name
-  const p = S.pending[i];
-  if (p && ((p.k === 'y' && A.kind === 'yt' && p.id === A.ytid) || (p.k === 'f' && A.kind === 'file'))) {
-    if (typeof p.off === 'number') A.off = p.off;
-    if (p.label) A.label = p.label;
-    delete S.pending[i];
+  const p = a.pending;
+  if (p && ((p.k === 'y' && a.kind === 'yt' && p.id === a.ytid) || (p.k === 'f' && a.kind === 'file'))) {
+    if (typeof p.off === 'number') a.off = p.off;
+    if (p.label) a.label = p.label;
   }
-  A.want = null;
-  if (!S.angles[S.main].ready) S.main = i;
-  if (S.shared && !Object.keys(S.pending).length) S.shared = null;
+  a.pending = null; a.want = null;
+  if (!S.mainChosen) S.main = Math.max(0, S.angles.findIndex(x => x.ready));
+  if (S.shared && !S.angles.some(x => x.pending)) S.shared = false;
   if (prefs.tab === 'help') setTab('angles');
   applyAudio(); render(); renderPanel(); renderMarkers();
   seekAll(S.t); save();
-  toast(restored ? `${A.label}を読み込み、前回の同期とタグを復元しました` : `${A.label}を読み込みました`);
+  toast(restored ? `${a.label}を読み込み、前回の同期とタグを復元しました` : `${a.label}を読み込みました`);
 }
-function showError(i, html) {
-  const A = S.angles[i]; A.err = true; A.ready = false;
-  const box = tiles[i].querySelector('.err'); box.innerHTML = html; box.hidden = false;
-  tiles[i].classList.add('loaded'); render(); renderPanel();
-}
-function clearSlot(i) {
-  const A = S.angles[i];
-  srcs[i].pause(); srcs[i].destroy();
-  if (A.url) URL.revokeObjectURL(A.url);
-  if (A.kind === 'yt') {
-    tiles[i].querySelector('.ytwrap').innerHTML = `<div id="yt${i}"></div>`;
-    srcs[i] = new FileSrc(videos[i]);
-  }
-  Object.assign(A, {kind:null, url:null, ytid:null, name:'', size:0, dur:0, ready:false, err:false});
-  tiles[i].classList.remove('is-yt', 'ad');
-  tiles[i].querySelector('.err').hidden = true;
-}
-function loadFile(i, file) {
-  clearSlot(i);
-  const A = S.angles[i];
-  if (!loaded().length) { S.t = 0; A.off = 0; }
-  Object.assign(A, {kind:'file', url: URL.createObjectURL(file), name: file.name, size: file.size});
-  videos[i].src = A.url; videos[i].load();
+function showError(a, html) {
+  a.err = true; a.ready = false;
+  const box = a.el.querySelector('.err'); box.innerHTML = html; box.hidden = false;
   render(); renderPanel();
 }
-function loadYouTube(i, id) {
+function clearSource(a) {
+  a.src.pause(); a.src.destroy();
+  if (a.url) URL.revokeObjectURL(a.url);
+  if (a.kind === 'yt') { a.ytview.innerHTML = `<div id="yt${a.uid}"></div>`; a.src = new FileSrc(a.v); }
+  Object.assign(a, {kind:null, url:null, ytid:null, name:'', size:0, dur:0, ready:false, err:false});
+  a.el.classList.remove('is-yt', 'ad');
+  a.el.querySelector('.err').hidden = true;
+}
+function loadFile(a, file) {
+  clearSource(a);
+  if (!loaded().length) { S.t = 0; a.off = 0; }
+  Object.assign(a, {kind:'file', url: URL.createObjectURL(file), name: file.name, size: file.size});
+  a.v.src = a.url; a.v.load();
+  render(); renderPanel();
+}
+function loadYouTube(a, id) {
   if (IS_FILE) { toast('YouTubeは「マルチアングル起動.bat」かWeb版から開いたときに使えます', 3500); return false; }
-  clearSlot(i);
-  const A = S.angles[i];
-  if (!loaded().length) { S.t = 0; A.off = 0; }
-  Object.assign(A, {kind:'yt', ytid:id, name:'YouTube', size:0});
-  tiles[i].classList.add('is-yt');
+  clearSource(a);
+  if (!loaded().length) { S.t = 0; a.off = 0; }
+  Object.assign(a, {kind:'yt', ytid:id, name:'YouTube', size:0});
+  a.el.classList.add('is-yt');
   render(); renderPanel();
   ensureYT().then(() => {
-    if (A.kind !== 'yt' || A.ytid !== id) return;
+    if (a.kind !== 'yt' || a.ytid !== id) return;
+    fitYT(a);
     let src;
-    const player = new YT.Player('yt' + i, {
+    const player = new YT.Player('yt' + a.uid, {
       videoId: id, width: '100%', height: '100%',
-      playerVars: {controls: 0, disablekb: 1, fs: 0, rel: 0, playsinline: 1, iv_load_policy: 3, modestbranding: 1, origin: location.origin},
+      playerVars: {controls: 0, disablekb: 1, fs: 0, rel: 0, playsinline: 1, iv_load_policy: 3, modestbranding: 1, cc_load_policy: 0, origin: location.origin},
       events: {
         onReady: () => {
-          if (A.kind !== 'yt' || A.ytid !== id) return;
-          player.mute();
-          try { const d = player.getVideoData(); if (d && d.title) A.name = d.title; } catch (e) {}
+          if (a.kind !== 'yt' || a.ytid !== id) return;
+          player.mute(); hideCaptions(player);
+          try { const d = player.getVideoData(); if (d && d.title) a.name = d.title; } catch (e) {}
           let tries = 0;
           const waitDur = () => {
             const d = player.getDuration();
-            if (d > 0) { A.dur = d; onLoaded(i); }
+            if (d > 0) { a.dur = d; onLoaded(a); }
             else if (++tries < 40) setTimeout(waitDur, 250);
-            else {
-              src.time = 0.01; setTimeout(() => { A.dur = player.getDuration() || 0; if (A.dur > 0) onLoaded(i); else showError(i, 'YouTubeの動画の長さを読み取れませんでした。もう一度読み込んでください。'); }, 1500);
-            }
+            else { src.time = 0.01; setTimeout(() => { a.dur = player.getDuration() || 0; if (a.dur > 0) onLoaded(a); else showError(a, 'YouTubeの動画の長さを読み取れませんでした。もう一度読み込んでください。'); }, 1500); }
           };
           waitDur();
         },
+        onApiChange: () => hideCaptions(player),
         onStateChange: e => {
-          src.state = e.data;
-          if (e.data === 1 && !src.want) player.pauseVideo();
+          src.onState(e.data);
+          if (e.data === 1) { if (!src.capOff) { hideCaptions(player); src.capOff = true; } if (!src.want) player.pauseVideo(); }
         },
-        onError: e => showError(i, YT_ERRORS[e.data] || `YouTubeの動画を再生できません（エラー${e.data}）。`)
+        onError: e => showError(a, YT_ERRORS[e.data] || `YouTubeの動画を再生できません（エラー${e.data}）。`)
       }
     });
     src = new YTSrc(player);
-    srcs[i] = src;
+    a.src = src;
+    applyAudio();
   }).catch(reason => {
-    if (A.kind !== 'yt' || A.ytid !== id) return;
-    showError(i, reason === 'file'
+    if (a.kind !== 'yt' || a.ytid !== id) return;
+    showError(a, reason === 'file'
       ? 'YouTubeは「マルチアングル起動.bat」かWeb版から開いたときに使えます。'
       : 'YouTubeを読み込めませんでした。インターネットの接続を確認してください。<br>claude.aiの中ではYouTubeは使えないので、「マルチアングル起動.bat」かWeb版を使ってください。');
   });
   return true;
 }
-function unloadAngle(i) {
-  clearSlot(i);
-  const A = S.angles[i]; A.off = 0; A.label = LABELS[i]; A.want = null;
-  if (S.main === i) { const L = loaded(); if (L.length) S.main = L[0].i; }
-  applyAudio(); render(); renderPanel(); renderMarkers(); saveLast();
+function removeAngle(a) {
+  const k = idx(a); if (k < 0) return;
+  clearSource(a); a.el.remove();
+  S.angles.splice(k, 1);
+  S.markers.forEach(m => { if (m.cam === k) m.cam = null; else if (m.cam > k) m.cam--; });
+  if (S.main === k) S.main = Math.max(0, S.angles.findIndex(x => x.ready));
+  else if (S.main > k) S.main--;
+  S.main = clamp(S.main, 0, Math.max(0, S.angles.length - 1));
+  applyAudio(); render(); renderPanel(); renderMarkers(); save(); saveLast();
 }
-function emptySlots(start = 0) {
-  return [0,1,2,3].map(k => (start + k) % 4).filter(k => !S.angles[k].kind);
-}
-function fillSlots(files, start = 0) {
-  // prefer the slot that is waiting for this file name (after "resume" or a shared link)
+function addFiles(files) {
   files = [...files];
-  S.angles.forEach((a, k) => {
+  // a tile waiting for this file name (after "resume" or a shared link) gets it first
+  S.angles.forEach(a => {
     if (a.kind || !a.want) return;
     const n = files.findIndex(f => f.name === a.want);
-    if (n >= 0) loadFile(k, files.splice(n, 1)[0]);
+    if (n >= 0) loadFile(a, files.splice(n, 1)[0]);
   });
-  const empties = emptySlots(start);
-  files.slice(0, empties.length).forEach((f, n) => loadFile(empties[n], f));
-  if (files.length > empties.length) toast('空いている枠は4つまでです');
+  let skipped = 0;
+  files.forEach(f => {
+    const a = S.angles.find(x => !x.kind && !x.want) || newAngle();
+    if (a) loadFile(a, f); else skipped++;
+  });
+  if (skipped) toast(`アングルは${MAX}本までです（${skipped}本は入りませんでした）`, 3000);
 }
 function addYouTubeIds(ids) {
   if (!ids.length) return;
-  const empties = emptySlots(S.main);
-  ids.slice(0, empties.length).forEach((id, n) => loadYouTube(empties[n], id));
-  if (ids.length > empties.length) toast('空いている枠がありません。「外す」で枠を空けてください', 3000);
+  if (IS_FILE) { toast('YouTubeは「マルチアングル起動.bat」かWeb版から開いたときに使えます', 3500); return; }
+  let skipped = 0;
+  ids.forEach(id => {
+    const a = S.angles.find(x => !x.kind && !x.want) || newAngle();
+    if (a) loadYouTube(a, id); else skipped++;
+  });
+  if (skipped) toast(`アングルは${MAX}本までです（${skipped}本は入りませんでした）`, 3000);
 }
 
+/* ---------- layout: presets and free placement ---------- */
+function presetRects(kind) {
+  const n = S.angles.length, rects = new Array(n);
+  if (!n) return rects;
+  const m = clamp(S.main, 0, n - 1);
+  if (kind === 'grid' || n === 1) {
+    const cols = n === 1 ? 1 : n <= 4 ? 2 : 3, rows = Math.ceil(n / cols);
+    S.angles.forEach((a, i) => { rects[i] = {x: (i % cols) * 100 / cols, y: Math.floor(i / cols) * 100 / rows, w: 100 / cols, h: 100 / rows}; });
+    return rects;
+  }
+  const others = S.angles.map((a, i) => i).filter(i => i !== m);
+  if (wide()) {
+    const sp = clamp(prefs.split, 40, 90);
+    rects[m] = {x: 0, y: 0, w: sp, h: 100};
+    others.forEach((i, k) => { rects[i] = {x: sp, y: k * 100 / others.length, w: 100 - sp, h: 100 / others.length}; });
+  } else {
+    // phone: big one on top, the rest in a row underneath
+    const top = 100 * (1 / (1 + 1 / others.length));
+    rects[m] = {x: 0, y: 0, w: 100, h: top};
+    others.forEach((i, k) => { rects[i] = {x: k * 100 / others.length, y: top, w: 100 / others.length, h: 100 - top}; });
+  }
+  return rects;
+}
+function phoneStageHeight() {
+  const n = S.angles.length, W = stage.clientWidth || 360;
+  if (!n) return null;
+  if (S.layout === 'grid' || n === 1) { const cols = n === 1 ? 1 : n <= 4 ? 2 : 3; return Math.ceil(n / cols) * (W / cols) * 9 / 16; }
+  return W * 9 / 16 * (1 + 1 / (n - 1));
+}
+function toCustom() {
+  if (S.layout === 'custom') return;
+  const r = presetRects(S.layout);
+  S.angles.forEach((a, i) => a.rect = {...r[i]});
+  S.layout = 'custom'; prefs.layout = 'custom'; savePrefs();
+  renderLayoutSeg();
+}
+function setLayout(l) {
+  if (l === 'custom') {
+    const saved = prefs.custom[S.angles.length];
+    if (saved && saved.length === S.angles.length) S.angles.forEach((a, i) => a.rect = {...saved[i]});
+    else { const r = presetRects(S.layout === 'custom' ? 'focus' : S.layout); S.angles.forEach((a, i) => a.rect = a.rect || {...r[i]}); }
+  }
+  S.layout = l; prefs.layout = l; savePrefs();
+  render();
+}
+function layoutTiles() {
+  const n = S.angles.length;
+  const mode = (!wide() && S.layout === 'custom') ? 'focus' : S.layout;
+  if (!wide()) { const h = phoneStageHeight(); stage.style.height = h ? h + 'px' : ''; } else stage.style.height = '';
+  const rects = mode === 'custom' ? S.angles.map((a, i) => a.rect || presetRects('focus')[i]) : presetRects(mode);
+  S.angles.forEach((a, i) => {
+    const r = rects[i]; if (!r) return;
+    Object.assign(a.el.style, {left: `calc(${r.x}% + 3px)`, top: `calc(${r.y}% + 3px)`, width: `calc(${r.w}% - 6px)`, height: `calc(${r.h}% - 6px)`, zIndex: mode === 'custom' ? a.zi : (i === S.main ? 2 : 1)});
+    a.el.classList.toggle('focusmain', mode === 'focus' && i === S.main && n > 1);
+  });
+}
+function saveCustom() {
+  if (S.layout !== 'custom') return;
+  prefs.custom[S.angles.length] = S.angles.map(a => a.rect); savePrefs();
+}
+function startMove(e, a, what) {
+  if (!wide() || S.sync) return;
+  e.preventDefault(); e.stopPropagation();
+  const W = stage.clientWidth, H = stage.clientHeight;
+  const handle = e.currentTarget; try { handle.setPointerCapture(e.pointerId); } catch (err) {}
+  const focusSplit = what === 'size' && S.layout === 'focus' && idx(a) === S.main && S.angles.length > 1;
+  if (!focusSplit) toCustom();
+  a.zi = ++ZTOP; a.el.style.zIndex = a.zi;
+  const r0 = a.rect ? {...a.rect} : null, sp0 = prefs.split, x0 = e.clientX, y0 = e.clientY;
+  stage.classList.add('moving');
+  const snap = v => Math.round(v * 2) / 2;
+  const move = ev => {
+    const dx = (ev.clientX - x0) / W * 100, dy = (ev.clientY - y0) / H * 100;
+    if (focusSplit) { prefs.split = clamp(sp0 + dx, 40, 90); layoutTiles(); return; }
+    const r = a.rect;
+    if (what === 'move') { r.x = snap(clamp(r0.x + dx, 0, 100 - r.w)); r.y = snap(clamp(r0.y + dy, 0, 100 - r.h)); }
+    else { r.w = snap(clamp(r0.w + dx, 12, 100 - r.x)); r.h = snap(clamp(r0.h + dy, 12, 100 - r.y)); }
+    layoutTiles();
+  };
+  const end = () => {
+    handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', end); handle.removeEventListener('pointercancel', end);
+    stage.classList.remove('moving');
+    if (focusSplit) savePrefs(); else saveCustom();
+  };
+  handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', end); handle.addEventListener('pointercancel', end);
+}
+window.addEventListener('resize', () => layoutTiles());
+
 /* ---------- playback & sync engine ---------- */
-function applyAudio() { srcs.forEach((s, i) => s.setMuted((i !== S.main) || S.muted)); }
-function setMain(i) { S.main = i; applyAudio(); render(); renderPanel(); }
+function applyAudio() { S.angles.forEach((a, i) => a.src.setMuted((i !== S.main) || S.muted)); }
+function setMain(i) {
+  if (!S.angles[i]) return;
+  S.mainChosen = true;
+  const prev = mainA();
+  S.main = i; applyAudio(); render(); renderPanel();
+  if (S.light && S.playing && prev && prev !== mainA()) { if (prev.ready) prev.src.pause(); if (mainA().ready) drive(mainA()); }
+}
 function inRange(a, t) { const x = t + a.off; return x >= 0 && x <= a.dur - 0.05; }
+const lead = s => clamp(s.bufMs / 1000 * S.rate, 0.2, 2.5);
 
 function drive(a) {
-  const s = srcs[a.i], tgt = S.t + a.off;
+  const s = a.src, tgt = S.t + a.off, isMain = a === mainA();
   if (!inRange(a, S.t)) {
     if (!s.paused) s.pause();
     if (!s.seeking) { const edge = tgt < 0 ? 0 : a.dur - 0.05; if (Math.abs(s.time - edge) > 0.5) s.time = edge; }
     return;
   }
+  if (S.light && !isMain) { if (!s.paused) s.pause(); return; }
   if (s.paused) {
-    if (Math.abs(s.time - tgt) > 0.1) s.time = tgt;
+    const thr = s.fine ? 0.1 : isMain ? 0.3 : 1.0;
+    if (Math.abs(s.time - tgt) > thr) s.time = (s.fine || isMain) ? tgt : tgt + lead(s);
     s.setRate(S.rate); s.play();
     return;
   }
-  if (a.i === S.main || s.seeking) { s.setRate(S.rate); return; }
+  if (isMain || s.seeking) { s.setRate(S.rate); return; }
   const drift = s.time - tgt;
   if (s.fine) {
     if (Math.abs(drift) > 0.35) { s.time = tgt + 0.05 * S.rate; s.setRate(S.rate); }
     else if (Math.abs(drift) > 0.03) s.setRate(S.rate * clamp(1 - drift * 2, 0.85, 1.15));
     else s.setRate(S.rate);
-  } else {
-    // YouTube only allows fixed speeds: jump when a gap lasts a moment (ignore one odd reading)
-    if (Math.abs(drift) > 0.4) {
-      if (!s.driftAt) s.driftAt = now();
-      else if (now() - s.driftAt > 350) { s.time = tgt + 0.25 * S.rate; s.driftAt = 0; }
-    } else s.driftAt = 0;
-    s.setRate(S.rate);
+    return;
   }
+  // YouTube: small gaps are closed by playing one step slower/faster; only big gaps jump
+  if (Math.abs(drift) > 2) {
+    if (!s.driftAt) s.driftAt = now();
+    else if (now() - s.driftAt > 400) { s.time = tgt + lead(s); s.driftAt = 0; s.corr = 0; }
+    s.setRate(S.rate); return;
+  }
+  s.driftAt = 0;
+  if (s.corr) { if (Math.abs(drift) < 0.05 || Math.sign(drift) === s.corr) s.corr = 0; }
+  else if (Math.abs(drift) > 0.15) s.corr = drift > 0 ? -1 : 1;
+  s.setRate(S.rate, s.corr);
 }
 function play() {
   if (!loaded().length || S.sync) return;
   const [a0, tMax] = range();
   if (S.t >= tMax - 0.05) seekAll(a0);
-  S.playing = true; loaded().forEach(drive); updatePlayIcon();
+  S.playing = true; S.holdAt = 0; loaded().forEach(drive); updatePlayIcon();
 }
 function pause() {
-  S.playing = false; srcs.forEach(s => s.pause());
+  S.playing = false; S.angles.forEach(a => a.src.pause());
   seekAll(S.t); updatePlayIcon();
 }
 const togglePlay = () => S.playing ? pause() : play();
@@ -729,39 +949,62 @@ function seekAll(t) {
   const [a0, a1] = range();
   S.t = clamp(t, a0, a1);
   loaded().forEach(a => {
-    srcs[a.i].time = clamp(S.t + a.off, 0, Math.max(0, a.dur - 0.05));
+    a.src.time = clamp(S.t + a.off, 0, Math.max(0, a.dur - 0.05));
     if (S.playing) drive(a);
   });
 }
 const seekRel = d => seekAll(S.t + d);
 function frameStep(n) { if (S.playing) pause(); seekAll(S.t + n * FRAME); }
 function replay() { if (!loaded().length) return; seekAll(S.t - 5); if (!S.playing) play(); }
-function nudgeTile(i, d) {
-  const a = S.angles[i], s = srcs[i]; if (!a.ready) return;
-  s.pause(); s.time = clamp(s.time + d, 0, a.dur);
-}
-function setRate(r) { S.rate = r; srcs.forEach(s => s.setRate(r)); renderRate(); toast(`再生速度 ${r}×`, 1000); }
+function nudgeTile(a, d) { if (!a || !a.ready) return; a.src.pause(); a.src.time = clamp(a.src.time + d, 0, a.dur); }
+function setRate(r) { S.rate = r; S.angles.forEach(a => a.src.setRate(r)); renderRate(); toast(`再生速度 ${r}×`, 1000); }
 function stepRate(dir) { const k = RATES.indexOf(S.rate); setRate(RATES[clamp((k < 0 ? 3 : k) + dir, 0, RATES.length - 1)]); }
+function setLight(on) {
+  S.light = on; prefs.light = on; savePrefs();
+  $('#light').classList.toggle('on', on);
+  $('#light').textContent = on ? '軽量：オン' : '軽量';
+  if (S.playing) loaded().forEach(drive);
+}
 
-let last = now();
+let last = now(), lastRefresh = 0;
 function tick(ts) {
   const dt = Math.min(0.25, (ts - last) / 1000); last = ts;
   if (S.playing && !S.sync) {
-    const m = S.angles[S.main], ms = srcs[S.main];
-    let adHold = false;
-    if (m.ready && inRange(m, S.t)) {
-      if (ms.inAd) {
-        adHold = true; // YouTube ad on the main angle: the others wait
-        loaded().forEach(a => { if (a.i !== S.main && !srcs[a.i].paused) srcs[a.i].pause(); });
-      } else if (!ms.paused && !ms.seeking) S.t = ms.time - m.off; // the main angle is the clock
-    } else S.t += dt * S.rate;
+    const m = mainA(), ms = m && m.src;
+    let hold = false;
+    if (m && m.ready && inRange(m, S.t)) {
+      if (ms.inAd || ms.buffering) {
+        // the main angle is loading (or showing an ad): stop the clock and let the others wait,
+        // so they don't race ahead and keep re-loading
+        if (!S.holdAt) S.holdAt = now();
+        const held = now() - S.holdAt;
+        if (held > 250) { hold = true; loaded().forEach(a => { if (a !== m && !a.src.paused) a.src.pause(); }); }
+        if (!ms.inAd && held > 7000) { ms.time = S.t + m.off; S.holdAt = now(); } // nudge a stuck player
+      } else {
+        if (S.holdAt && now() - S.holdAt > 1200) noteStall();
+        S.holdAt = 0;
+        if (!ms.paused && !ms.seeking) S.t = ms.time - m.off; // the main angle is the clock
+      }
+    } else { S.holdAt = 0; S.t += dt * S.rate; }
     const [, tMax] = range();
     if (S.reel && S.t >= S.reel.end) reelGo(1);
     else if (S.t >= tMax) { S.t = tMax; pause(); }
-    else if (!adHold) loaded().forEach(drive);
+    else if (!hold) loaded().forEach(drive);
+    // light mode: refresh the still pictures of the other angles now and then
+    if (S.light && !hold && now() - lastRefresh > 6000) {
+      lastRefresh = now();
+      loaded().forEach(a => { if (a !== m && inRange(a, S.t) && Math.abs(a.src.time - (S.t + a.off)) > 3) a.src.time = S.t + a.off; });
+    }
   }
   paint();
   requestAnimationFrame(tick);
+}
+function noteStall() {
+  S.stalls = S.stalls.filter(x => now() - x < 30000); S.stalls.push(now());
+  if (S.stalls.length >= 3 && !S.light && !S.stallHinted && loaded().length > 1) {
+    S.stallHinted = true;
+    toast('通信が追いつかず止まりがちです。「軽量」をオンにすると、メインだけ再生して軽くなります', 6000);
+  }
 }
 
 /* ---------- sync mode ---------- */
@@ -774,14 +1017,14 @@ function enterSync() {
 }
 function applySync() {
   const L = loaded(); if (!L.length) return;
-  const ref = L[0], base = srcs[ref.i].time;
-  L.forEach(a => { a.off = srcs[a.i].time - base; srcs[a.i].pause(); });
+  const ref = L[0], base = ref.src.time;
+  L.forEach(a => { a.off = a.src.time - base; a.src.pause(); });
   S.t = base; S.sync = false; save();
   render(); renderPanel(); seekAll(S.t); setTab('tags'); toast('同期しました。再生しながらタグを付けられます');
 }
 function cancelSync() {
-  S.sync = false; srcs.forEach(s => s.pause());
-  if (S.syncBackup) { S.angles.forEach((a, k) => a.off = S.syncBackup.offs[k]); seekAll(S.syncBackup.t); }
+  S.sync = false; S.angles.forEach(a => a.src.pause());
+  if (S.syncBackup) { S.angles.forEach((a, k) => { if (k < S.syncBackup.offs.length) a.off = S.syncBackup.offs[k]; }); seekAll(S.syncBackup.t); }
   render();
 }
 
@@ -806,12 +1049,7 @@ function startReel() {
   S.reel = {list: [...list], idx: 0, end: 0};
   reelShow();
 }
-function reelShow() {
-  const m = S.reel.list[S.reel.idx];
-  S.reel.end = m.t + prefs.post;
-  jumpTo(m);
-  renderReel();
-}
+function reelShow() { const m = S.reel.list[S.reel.idx]; S.reel.end = m.t + prefs.post; jumpTo(m); renderReel(); }
 function reelGo(d) {
   if (!S.reel) return;
   const n = S.reel.idx + d;
@@ -848,8 +1086,7 @@ function renderMarkers() {
     row.querySelector('.x').addEventListener('click', () => { S.markers = S.markers.filter(x => x !== m); renderMarkers(); save(); });
     list.appendChild(row); rowById[m.id] = row;
   });
-  renderFilters();
-  paintMarks();
+  renderFilters(); paintMarks();
 }
 function renderFilters() {
   const box = $('#filters'); box.innerHTML = '';
@@ -875,7 +1112,7 @@ function paintMarks() {
 }
 $('#copyMarks').addEventListener('click', () => {
   if (!S.markers.length) { toast('タグがまだありません'); return; }
-  const text = S.markers.map(m => `${fmt(m.t)}\t${tagOf(m.tag).name}\t${m.cam != null ? 'CAM' + (m.cam + 1) + ' ' + (S.angles[m.cam] ? S.angles[m.cam].label : '') : ''}\t${m.note || ''}`).join('\n');
+  const text = S.markers.map(m => `${fmt(m.t)}\t${tagOf(m.tag).name}\t${m.cam != null && S.angles[m.cam] ? 'CAM' + (m.cam + 1) + ' ' + S.angles[m.cam].label : ''}\t${m.note || ''}`).join('\n');
   copyText(text, 'タグ一覧をコピーしました');
 });
 function copyText(text, okMsg) {
@@ -884,7 +1121,7 @@ function copyText(text, okMsg) {
     if (!ta) { ta = document.createElement('textarea'); ta.className = 'copybox'; $('#mlist').after(ta); }
     setTab('tags'); ta.value = text; ta.focus(); ta.select(); toast('選択された文字を Ctrl+C でコピーしてください', 3000);
   };
-  try { navigator.clipboard.writeText(text).then(() => toast(okMsg), fallback); } catch (e) { fallback(); }
+  try { navigator.clipboard.writeText(text).then(() => toast(okMsg, 3000), fallback); } catch (e) { fallback(); }
 }
 TAGS.forEach((tag, n) => {
   const b = document.createElement('button'); b.style.setProperty('--c', tag.c);
@@ -905,10 +1142,7 @@ const b64u = bytes => { let s = ''; for (let i = 0; i < bytes.length; i += 0x800
 const unb64u = str => { const s = atob(str.replace(/-/g, '+').replace(/_/g, '/')); const b = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i); return b; };
 async function encodeShare(obj) {
   const bytes = new TextEncoder().encode(JSON.stringify(obj));
-  if (window.CompressionStream) {
-    const out = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer());
-    return 'z' + b64u(out);
-  }
+  if (window.CompressionStream) return 'z' + b64u(new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer()));
   return 'j' + b64u(bytes);
 }
 async function decodeShare(str) {
@@ -917,26 +1151,23 @@ async function decodeShare(str) {
   return JSON.parse(new TextDecoder().decode(bytes));
 }
 $('#shareBtn').addEventListener('click', async () => {
-  if (!S.angles.some(a => a.kind)) { toast('先に動画を読み込んでください'); return; }
-  const obj = {v: 1,
+  const used = S.angles.filter(a => a.kind);
+  if (!used.length) { toast('先に動画を読み込んでください'); return; }
+  const obj = {v: 2,
     s: S.angles.map(a => a.kind === 'yt' ? ['y', a.ytid, a.label, +a.off.toFixed(3)] : a.kind === 'file' ? ['f', a.name, a.label, +a.off.toFixed(3)] : 0),
     m: S.markers.map(m => [+m.t.toFixed(2), m.tag, m.note || '', m.cam == null ? -1 : m.cam])};
   try {
     const base = /github\.io$/.test(location.hostname) ? location.origin + location.pathname : PAGES_URL;
     const url = base + '#s=' + await encodeShare(obj);
-    const hasFile = S.angles.some(a => a.kind === 'file');
-    copyText(url, hasFile ? '共有リンクをコピーしました。パソコンの動画ファイルは、受け取った人が自分で選びます' : '共有リンクをコピーしました。LINEなどに貼って送れます');
+    copyText(url, used.some(a => a.kind === 'file') ? '共有リンクをコピーしました。パソコンの動画ファイルは、受け取った人が自分で選びます' : '共有リンクをコピーしました。LINEなどに貼って送れます');
   } catch (e) { toast('共有リンクを作れませんでした'); }
 });
 function applyPlan(slots, markers) {
-  // slots: [{k:'y'|'f', id|name, label, off}] — load YouTube now, wait for files by name
-  slots.forEach((p, i) => {
-    if (!p || i > 3) return;
-    const A = S.angles[i];
-    A.label = p.label || LABELS[i];
-    S.pending[i] = p;
-    if (p.k === 'y') loadYouTube(i, p.id);
-    else if (p.k === 'f') A.want = p.name;
+  slots.filter(Boolean).slice(0, MAX).forEach(p => {
+    const a = S.angles.find(x => !x.kind && !x.want) || newAngle(p.label); if (!a) return;
+    a.label = p.label || a.label; a.pending = p;
+    if (p.k === 'y') loadYouTube(a, p.id);
+    else if (p.k === 'f') a.want = p.name;
   });
   if (markers) { S.markers = markers; renderMarkers(); }
   render(); renderPanel();
@@ -948,7 +1179,9 @@ async function openShared() {
   try {
     const d = await decodeShare(m[1]);
     const slots = (d.s || []).map(x => x ? {k: x[0], id: x[0] === 'y' ? x[1] : null, name: x[0] === 'f' ? x[1] : null, label: x[2], off: x[3]} : null);
-    const markers = (d.m || []).map((x, n) => ({id: 'sh' + n, t: x[0], tag: x[1], note: x[2], cam: x[3] < 0 ? null : x[3]}));
+    // older links kept empty slots; tag camera numbers refer to the list without them
+    const map = []; let k = 0; slots.forEach((p, i) => { map[i] = p ? k++ : null; });
+    const markers = (d.m || []).map((x, n) => ({id: 'sh' + n, t: x[0], tag: x[1], note: x[2], cam: x[3] < 0 || map[x[3]] == null ? null : map[x[3]]}));
     S.shared = true;
     applyPlan(slots, markers);
     toast('共有された分析を開きました', 2500);
@@ -957,10 +1190,9 @@ async function openShared() {
   } catch (e) { toast('共有リンクを読み取れませんでした'); return false; }
 }
 $('#resumeBtn').addEventListener('click', () => {
-  const last = store.get('mav:last', null); if (!last) return;
-  applyPlan(last.slots.map(s => s && {k: s.k, id: s.id, name: s.name, label: s.label}), null);
-  $('#resumeBtn').hidden = true;
-  if (last.slots.some(s => s && s.k === 'f')) toast('パソコンの動画は、枠に表示されたファイルを選び直してください', 3500);
+  const lastS = store.get('mav:last', null); if (!lastS) return;
+  applyPlan(lastS.slots.filter(Boolean).map(s => ({k: s.k, id: s.id, name: s.name, label: s.label})), null);
+  if (lastS.slots.some(s => s && s.k === 'f')) toast('パソコンの動画は、枠に表示されたファイルを選び直してください（まとめて選べます）', 4000);
 });
 
 /* ---------- YouTube add dialog ---------- */
@@ -970,6 +1202,7 @@ function openYtPop() {
 }
 const closeYtPop = () => { $('#ytPop').hidden = true; };
 $('#ytAdd').addEventListener('click', openYtPop);
+$('#addYt').addEventListener('click', openYtPop);
 $('#ytCancel').addEventListener('click', closeYtPop);
 $('#ytPop').addEventListener('click', e => { if (e.target.id === 'ytPop') closeYtPop(); });
 $('#ytOk').addEventListener('click', () => {
@@ -977,6 +1210,13 @@ $('#ytOk').addEventListener('click', () => {
   if (!ids.length) { toast('YouTubeの動画のURLが見つかりませんでした'); return; }
   closeYtPop(); addYouTubeIds(ids);
 });
+$('#startYt').addEventListener('submit', e => {
+  e.preventDefault();
+  const ids = allYouTubeIds($('#startYtUrl').value);
+  if (!ids.length) { toast('YouTubeの動画のURLを貼り付けてください'); return; }
+  $('#startYtUrl').value = ''; addYouTubeIds(ids);
+});
+if (IS_FILE) { $('#startYt').hidden = true; $('#startHint').textContent = '動画ファイルはこの枠にドロップできます。YouTubeは「マルチアングル起動.bat」かWeb版から開くと使えます'; }
 
 /* ---------- render ---------- */
 function setTab(t) {
@@ -993,22 +1233,28 @@ function renderRate() {
   });
   [...seg.children].forEach(b => b.classList.toggle('on', +b.dataset.r === S.rate));
 }
+function renderLayoutSeg() { document.querySelectorAll('#layoutSeg button').forEach(b => b.classList.toggle('on', b.dataset.l === S.layout)); }
+document.querySelectorAll('#layoutSeg button').forEach(b => b.addEventListener('click', () => setLayout(b.dataset.l)));
 function render() {
-  const any = S.angles.some(a => a.kind);
-  stage.className = 'stage ' + S.layout + (S.sync ? ' syncing' : '') + (any ? '' : ' fresh');
+  const n = S.angles.length;
+  S.main = clamp(S.main, 0, Math.max(0, n - 1));
+  stage.className = 'stage' + (S.sync ? ' syncing' : '') + (n ? '' : ' fresh');
+  $('#start').hidden = !!n;
   $('#syncbar').hidden = !S.sync;
   $('#track').classList.toggle('disabled', S.sync);
   $('#syncBtn').classList.toggle('on', S.sync);
-  $('#layout').textContent = S.layout === 'focus' ? '2×2表示' : '大小表示';
-  $('#mute').textContent = S.muted ? '消音中' : '音あり';
+  $('#mute').textContent = S.muted ? '消音' : '音';
   $('#mute').classList.toggle('on', S.muted);
-  $('#resumeBtn').hidden = any || !store.get('mav:last', null);
+  $('#resumeBtn').hidden = !!n || !store.get('mav:last', null);
+  $('#angCnt').textContent = n;
+  renderLayoutSeg();
   S.angles.forEach((a, i) => {
-    const el = tiles[i];
+    const el = a.el;
     el.classList.toggle('main', i === S.main);
     el.classList.toggle('loaded', !!a.kind);
+    el.querySelector('.num').textContent = i + 1;
     el.querySelector('.lbl').textContent = a.label;
-    el.querySelector('.elbl').textContent = a.label;
+    el.querySelector('.elbl').textContent = `${i + 1}. ${a.label}`;
     const want = el.querySelector('.want');
     want.hidden = !a.want || !!a.kind;
     want.textContent = a.want ? `「${a.want}」を選んでください` : '';
@@ -1016,43 +1262,45 @@ function render() {
     el.querySelector('.aud').hidden = !(i === S.main && !S.muted && a.ready);
     el.querySelector('.scrub').max = a.dur || 1;
   });
+  layoutTiles();
   renderLanes();
 }
 function renderLanes() {
   const [a0, a1] = range(), span = a1 - a0, box = $('#lanes'); box.innerHTML = '';
-  S.angles.forEach(a => {
+  S.angles.forEach((a, i) => {
     if (!a.ready) return;
-    const lane = document.createElement('div'); lane.className = 'lane' + (a.i === S.main ? ' main' : '');
+    const lane = document.createElement('div'); lane.className = 'lane' + (i === S.main ? ' main' : '');
     const bar = document.createElement('i');
     bar.style.left = span > 0 ? ((-a.off - a0) / span * 100) + '%' : '0';
     bar.style.width = span > 0 ? (a.dur / span * 100) + '%' : '100%';
-    lane.title = `${a.i + 1} ${a.label}`;
+    lane.title = `${i + 1} ${a.label}`;
     lane.appendChild(bar); box.appendChild(lane);
   });
   paintMarks();
 }
 function renderPanel() {
   const box = $('#alist'); box.innerHTML = '';
-  const L = loaded(), ref = L[0];
+  const ref = loaded()[0];
+  if (!S.angles.length) box.innerHTML = '<p class="mempty">まだアングルがありません。下の「ファイル」か「YouTube」から追加してください。</p>';
   S.angles.forEach((a, i) => {
     const row = document.createElement('div'); row.className = 'arow' + (i === S.main ? ' main' : '');
     const kindName = a.kind === 'yt' ? 'YouTube・' : '';
-    const meta = a.err ? '再生できません' : a.ready ? `${kindName}${a.name}・${fmt(a.dur, false)}` : a.kind ? '読み込み中…' : a.want ? `「${a.want}」を選んでください` : '未読み込み';
-    row.innerHTML = `<span class="num">${i + 1}</span><input class="alabel" id="alabel${i}" aria-label="アングル${i+1}の名前">
+    const meta = a.err ? '再生できません' : a.ready ? `${kindName}${a.name}・${fmt(a.dur, false)}` : a.kind ? '読み込み中…' : a.want ? `「${a.want}」を選んでください` : '動画がまだありません';
+    row.innerHTML = `<button class="num" title="メインにする">${i + 1}</button><input class="alabel" aria-label="アングル${i+1}の名前">
       <div class="meta"></div>
-      ${a.ready ? `<div class="offs"><span class="k">${ref && ref.i === i ? '基準' : 'ずれ補正'}</span>
+      ${a.ready ? `<div class="offs"><span class="k">${ref === a ? '基準' : 'ずれ補正'}</span>
         <button data-o="-0.1">−0.1</button><button data-o="${-FRAME}">−1f</button>
-        <input type="number" step="0.01" id="off${i}" aria-label="アングル${i+1}のずれ（秒）"><span class="k">秒</span>
+        <input type="number" step="0.01" aria-label="アングル${i+1}のずれ（秒）"><span class="k">秒</span>
         <button data-o="${FRAME}">+1f</button><button data-o="0.1">+0.1</button></div>` : ''}
       <div class="acts">
         <button data-act="file">${a.kind ? 'ファイルに差し替え' : 'ファイルを選ぶ'}</button>
-        ${IS_FILE ? '' : '<button data-act="yt">YouTube</button>'}
-        ${a.kind ? '<button data-act="remove">外す</button>' : ''}
+        ${IS_FILE ? '' : `<button data-act="yt">${a.kind ? 'YouTubeに差し替え' : 'YouTube'}</button>`}
+        <button data-act="remove">このアングルを外す</button>
       </div>`;
-    row.querySelector('.meta').textContent = meta;
-    row.querySelector('.meta').title = meta;
+    row.querySelector('.meta').textContent = meta; row.querySelector('.meta').title = meta;
+    row.querySelector('.num').addEventListener('click', () => setMain(i));
     const inp = row.querySelector('.alabel'); inp.value = a.label;
-    inp.addEventListener('input', () => { a.label = inp.value || LABELS[i]; render(); save(); });
+    inp.addEventListener('input', () => { a.label = inp.value || LABELS[i] || `アングル${i + 1}`; render(); save(); });
     const offIn = row.querySelector('.offs input');
     const showOff = () => { if (offIn) offIn.value = a.off.toFixed(2); };
     showOff();
@@ -1060,22 +1308,23 @@ function renderPanel() {
       const v = parseFloat(offIn.value); if (!isFinite(v)) { showOff(); return; }
       a.off = v; renderLanes(); seekAll(S.t); save();
     });
-    row.querySelectorAll('[data-o]').forEach(b => b.addEventListener('click', () => {
-      a.off += +b.dataset.o; showOff(); renderLanes(); seekAll(S.t); save();
-    }));
+    row.querySelectorAll('[data-o]').forEach(b => b.addEventListener('click', () => { a.off += +b.dataset.o; showOff(); renderLanes(); seekAll(S.t); save(); }));
     row.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => {
       const act = b.dataset.act;
-      if (act === 'file') tiles[i].querySelector('input[type=file]').click();
-      else if (act === 'remove') unloadAngle(i);
+      if (act === 'file') a.fileInput.click();
+      else if (act === 'remove') removeAngle(a);
       else if (act === 'yt') {
-        if (a.kind) unloadAngle(i);
-        setMain(i);
-        const f = tiles[i].querySelector('.ytform input');
-        if (f) { f.focus(); tiles[i].scrollIntoView({block: 'nearest'}); }
+        if (a.kind) clearSource(a);
+        a.want = null; setMain(i); render(); renderPanel();
+        const f = a.el.querySelector('.ytform input');
+        if (f) { f.focus(); a.el.scrollIntoView({block: 'nearest'}); }
       }
     }));
     box.appendChild(row);
   });
+  const full = S.angles.length >= MAX;
+  $('#addFile').disabled = full; $('#addYt').disabled = full || IS_FILE;
+  $('#addMax').textContent = full ? `（最大${MAX}本）` : `あと${MAX - S.angles.length}本`;
 }
 let lastTc = '', lastCur = 0;
 function paint() {
@@ -1084,17 +1333,19 @@ function paint() {
   if (tc !== lastTc) { $('#tc').innerHTML = tc; lastTc = tc; }
   const p = span > 0 ? (S.t - a0) / span * 100 : 0;
   $('#fill').style.width = p + '%'; $('#head').style.left = p + '%';
-  S.angles.forEach((a, i) => {
+  const m = mainA();
+  S.angles.forEach(a => {
     if (!a.ready) return;
-    const s = srcs[i];
-    tiles[i].classList.toggle('ad', !!s.inAd);
-    tiles[i].querySelector('.ctime').textContent = s.inAd ? '広告中（終わるまで待機）' : fmt(s.time);
-    tiles[i].classList.toggle('is-oor', !S.sync && !inRange(a, S.t) && Math.abs(S.t + a.off - a.dur) > 0.06);
-    if (S.sync) tiles[i].querySelector('.scrub').value = s.time;
+    const s = a.src;
+    a.el.classList.toggle('ad', !!s.inAd);
+    a.el.classList.toggle('held', S.playing && S.light && a !== m && inRange(a, S.t));
+    a.el.querySelector('.ctime').textContent = s.inAd ? '広告中（終わるまで待機）' : fmt(s.time);
+    a.el.classList.toggle('is-oor', !S.sync && !inRange(a, S.t) && Math.abs(S.t + a.off - a.dur) > 0.06);
+    if (S.sync) a.el.querySelector('.scrub').value = s.time;
   });
   if (now() - lastCur > 250) {
     lastCur = now();
-    S.markers.forEach(m => { const r = rowById[m.id]; if (r) r.classList.toggle('cur', S.t >= m.t - prefs.pre && S.t <= m.t + prefs.post); });
+    S.markers.forEach(mk => { const r = rowById[mk.id]; if (r) r.classList.toggle('cur', S.t >= mk.t - prefs.pre && S.t <= mk.t + prefs.post); });
   }
 }
 function updatePlayIcon() {
@@ -1117,7 +1368,7 @@ function showTip(x) {
 track.addEventListener('pointerdown', e => {
   if (!loaded().length) return;
   stopReel();
-  dragging = true; resume = S.playing; if (S.playing) { S.playing = false; srcs.forEach(s => s.pause()); }
+  dragging = true; resume = S.playing; if (S.playing) { S.playing = false; S.angles.forEach(a => a.src.pause()); }
   track.setPointerCapture(e.pointerId); seekAll(tFromX(e.clientX)); showTip(e.clientX);
 });
 track.addEventListener('pointermove', e => { showTip(e.clientX); if (dragging) seekAll(tFromX(e.clientX)); });
@@ -1125,15 +1376,15 @@ track.addEventListener('pointerleave', () => { if (!dragging) tip.hidden = true;
 const endDrag = () => { if (!dragging) return; dragging = false; tip.hidden = true; if (resume) play(); else updatePlayIcon(); };
 track.addEventListener('pointerup', endDrag); track.addEventListener('pointercancel', endDrag);
 
-/* wheel over the videos: 1 s per notch (Shift: 1 frame) */
+/* wheel over the videos: 1 s per notch (Shift: 1 frame). Ctrl+wheel zooms (handled on the tile) */
 let wheelAt = 0;
 stage.addEventListener('wheel', e => {
-  if (!wide() || !loaded().length) return;
+  if (e.ctrlKey || e.metaKey || !wide() || !loaded().length) return;
   e.preventDefault();
   if (now() - wheelAt < 70) return; wheelAt = now();
   const dir = Math.sign(e.deltaY || e.deltaX); if (!dir) return;
   const step = dir * (e.shiftKey ? FRAME : 1);
-  if (S.sync) { nudgeTile(S.main, step); return; }
+  if (S.sync) { nudgeTile(mainA(), step); return; }
   if (S.playing) pause();
   seekAll(S.t + step);
 }, {passive: false});
@@ -1141,10 +1392,10 @@ stage.addEventListener('wheel', e => {
 /* ---------- controls ---------- */
 $('#play').addEventListener('click', () => S.sync ? null : togglePlay());
 $('#replay').addEventListener('click', replay);
-document.querySelectorAll('[data-seek]').forEach(b => b.addEventListener('click', () => S.sync ? nudgeTile(S.main, +b.dataset.seek) : seekRel(+b.dataset.seek)));
-document.querySelectorAll('[data-frame]').forEach(b => b.addEventListener('click', () => S.sync ? nudgeTile(S.main, b.dataset.frame * FRAME) : frameStep(+b.dataset.frame)));
+document.querySelectorAll('[data-seek]').forEach(b => b.addEventListener('click', () => S.sync ? nudgeTile(mainA(), +b.dataset.seek) : seekRel(+b.dataset.seek)));
+document.querySelectorAll('[data-frame]').forEach(b => b.addEventListener('click', () => S.sync ? nudgeTile(mainA(), b.dataset.frame * FRAME) : frameStep(+b.dataset.frame)));
 $('#mute').addEventListener('click', () => { S.muted = !S.muted; applyAudio(); render(); });
-$('#layout').addEventListener('click', () => { S.layout = S.layout === 'focus' ? 'grid' : 'focus'; render(); });
+$('#light').addEventListener('click', () => { setLight(!S.light); toast(S.light ? '軽量：メインだけ再生し、ほかは止めた絵で待機します' : '全部のアングルを同時に再生します', 3000); });
 $('#syncBtn').addEventListener('click', () => S.sync ? cancelSync() : enterSync());
 $('#syncApply').addEventListener('click', applySync);
 $('#syncCancel').addEventListener('click', cancelSync);
@@ -1156,21 +1407,22 @@ function toggleFs() {
 }
 $('#fs').addEventListener('click', toggleFs);
 $('#bulk').addEventListener('click', () => $('#bulkInput').click());
-$('#bulkInput').addEventListener('change', e => { fillSlots([...e.target.files]); e.target.value = ''; });
-document.addEventListener('dragover', e => e.preventDefault());
+$('#startFile').addEventListener('click', () => $('#bulkInput').click());
+$('#addFile').addEventListener('click', () => $('#bulkInput').click());
+$('#bulkInput').addEventListener('change', e => { addFiles([...e.target.files]); e.target.value = ''; });
+document.addEventListener('dragover', e => { e.preventDefault(); $('#start').classList.add('dragover'); });
+document.addEventListener('dragleave', e => { if (!e.relatedTarget) $('#start').classList.remove('dragover'); });
 document.addEventListener('drop', e => {
-  e.preventDefault();
+  e.preventDefault(); $('#start').classList.remove('dragover');
   const files = videoFiles(e.dataTransfer.files);
-  if (files.length) { fillSlots(files, S.main); return; }
+  if (files.length) { addFiles(files); return; }
   addYouTubeIds(allYouTubeIds(e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain')));
 });
 document.addEventListener('paste', e => {
   if (e.target.matches && e.target.matches('input,textarea')) return;
   const ids = allYouTubeIds((e.clipboardData || window.clipboardData).getData('text'));
   if (!ids.length) return;
-  e.preventDefault();
-  if (IS_FILE) { toast('YouTubeは「マルチアングル起動.bat」かWeb版から開いたときに使えます', 3500); return; }
-  addYouTubeIds(ids);
+  e.preventDefault(); addYouTubeIds(ids);
 });
 
 document.addEventListener('keydown', e => {
@@ -1185,33 +1437,34 @@ document.addEventListener('keydown', e => {
   if (!$('#ytPop').hidden) return;
   if (t.matches && t.matches('input:not([type=range]),textarea,select')) return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
-  const dm = /^Digit([1-6])$/.exec(e.code);
+  const dm = /^Digit([0-9])$/.exec(e.code);
   if (dm) {
-    const n = +dm[1] - 1;
-    if (e.shiftKey) { addMarker(TAGS[n]); e.preventDefault(); }
-    else if (n < 4) setMain(n);
+    const n = +dm[1];
+    if (n === 0) { if (mainA()) setZoom(mainA(), 1, 0, 0); return; }
+    if (e.shiftKey) { if (n <= 6) { addMarker(TAGS[n - 1]); e.preventDefault(); } }
+    else if (n <= S.angles.length) setMain(n - 1);
     return;
   }
   switch (e.code) {
     case 'Space': case 'KeyK': e.preventDefault();
-      if (S.sync) { const s = srcs[S.main]; if (S.angles[S.main].ready) s.paused ? s.play() : s.pause(); }
+      if (S.sync) { const a = mainA(); if (a && a.ready) a.src.paused ? a.src.play() : a.src.pause(); }
       else togglePlay(); return;
     case 'ArrowLeft': case 'ArrowRight': {
       e.preventDefault(); const d = (e.shiftKey ? 1 : 5) * (e.code === 'ArrowLeft' ? -1 : 1);
-      S.sync ? nudgeTile(S.main, d) : seekRel(d); return; }
-    case 'KeyJ': S.sync ? nudgeTile(S.main, -10) : seekRel(-10); return;
-    case 'KeyL': S.sync ? nudgeTile(S.main, 10) : seekRel(10); return;
+      S.sync ? nudgeTile(mainA(), d) : seekRel(d); return; }
+    case 'KeyJ': S.sync ? nudgeTile(mainA(), -10) : seekRel(-10); return;
+    case 'KeyL': S.sync ? nudgeTile(mainA(), 10) : seekRel(10); return;
     case 'KeyR': replay(); return;
     case 'KeyN': reelGo(1); return;
     case 'KeyP': reelGo(-1); return;
-    case 'KeyG': S.layout = S.layout === 'focus' ? 'grid' : 'focus'; render(); return;
+    case 'KeyG': setLayout(S.layout === 'focus' ? 'grid' : S.layout === 'grid' && wide() ? 'custom' : 'focus'); return;
     case 'KeyM': S.muted = !S.muted; applyAudio(); render(); return;
     case 'KeyF': toggleFs(); return;
     case 'KeyS': S.sync ? cancelSync() : enterSync(); return;
     case 'KeyB': addMarker(TAGS[5]); return;
   }
-  if (e.key === ',' || e.key === '<') { S.sync ? nudgeTile(S.main, -FRAME) : frameStep(-1); }
-  else if (e.key === '.' || e.key === '>') { S.sync ? nudgeTile(S.main, FRAME) : frameStep(1); }
+  if (e.key === ',' || e.key === '<') { S.sync ? nudgeTile(mainA(), -FRAME) : frameStep(-1); }
+  else if (e.key === '.' || e.key === '>') { S.sync ? nudgeTile(mainA(), FRAME) : frameStep(1); }
   else if (e.key === '[') stepRate(-1);
   else if (e.key === ']') stepRate(1);
   else if (e.key === '?') setTab('help');
@@ -1219,6 +1472,7 @@ document.addEventListener('keydown', e => {
 
 /* ---------- start ---------- */
 setTab(prefs.tab || 'help');
+setLight(S.light);
 renderRate(); render(); renderPanel(); renderMarkers(); updatePlayIcon();
 openShared();
 requestAnimationFrame(tick);
