@@ -61,7 +61,7 @@ button{cursor:pointer}
 .ytview{position:absolute;overflow:hidden}
 .ytview iframe{position:absolute;left:0;top:-64px;width:100%;height:calc(100% + 128px);border:0}
 .tile:not(.is-yt) .ytwrap,.tile.is-yt video{display:none}
-.tile.ad .ytwrap{pointer-events:auto}
+.tile.ad .ytwrap,.tile.tapme .ytwrap{pointer-events:auto}
 .tile.ad .ytview{overflow:visible}
 .tbar{position:absolute;left:6px;right:6px;top:6px;display:flex;align-items:center;gap:6px;z-index:3;pointer-events:none}
 .tbar>*{pointer-events:auto}
@@ -372,7 +372,7 @@ body.theater-on .mbar{display:none!important}
         <button data-l="focus" title="1つを大きく、ほかを小さく（G）">大小</button><button data-l="grid" title="全部同じ大きさ（G）">均等</button><button data-l="single" title="1本を大きく。下のボタンで切り替え（G）">1画面</button><button data-l="custom" title="枠をドラッグで動かす・角で大きさを変える">自由</button>
       </div>
       <button class="btn" id="light" title="メインだけ再生して通信を軽くする">軽量</button>
-      <button class="btn" id="mute" title="消音（M）">音</button>
+      <button class="btn" id="mute" title="音のオン／オフ（M）">音あり</button>
       <button class="btn" id="bigBtn" title="映像だけを画面いっぱいに（V）">大きく見る</button>
       <button class="btn" id="fs">全画面</button>
     </div>
@@ -441,7 +441,7 @@ body.theater-on .mbar{display:none!important}
         <dt><kbd>Esc</kbd></dt><dd>連続再生・同期合わせ・入力欄を閉じる</dd>
       </dl>
       <h3>YouTubeの広告</h3>
-      <p class="mempty">広告はYouTubeが流すもので、このページからは止められません。流れている間はほかのアングルも止めて待ち、映像の上に「広告 あと◯秒」と出します（スキップが出たら押せます。広告が2本続くこともあります）。<br>広告を出さないには：①YouTube Premium に入っているアカウントで、同じブラウザでYouTubeにログインしておく ②部のチャンネルの動画なら、YouTube Studio から元の動画をダウンロードして「動画ファイル」として使う（広告なし・コマ送りも正確）。</p>
+      <p class="mempty">スマホは最初「音なし」で始まります（スマホのブラウザは、音ありの自動再生を止めてしまうため）。音を出すには「音なし」ボタンを押してください。<br>広告はYouTubeが流すもので、このページからは止められません。流れている間はほかのアングルも止めて待ち、映像の上に「広告 あと◯秒」と出します（スキップが出たら押せます。広告が2本続くこともあります）。<br>広告を出さないには：①YouTube Premium に入っているアカウントで、同じブラウザでYouTubeにログインしておく ②部のチャンネルの動画なら、YouTube Studio から元の動画をダウンロードして「動画ファイル」として使う（広告なし・コマ送りも正確）。</p>
       <h3>うまく流れないとき</h3>
       <p class="mempty">字幕はこの画面では出ないようにしています。それでも出るときは、YouTubeの設定の「字幕を常に表示する」をオフにしてください。<br>通信が追いつかないと止まりやすくなります。「軽量」をオンにすると、メインだけを再生し、ほかのアングルは止めた絵で待機します（切り替えると、その場面から再生）。スマホでは最初からオンです。<br>動画が映らない：H.265(HEVC)はH.264のMP4に変換。YouTubeが映らない：「非公開」や埋め込み禁止の動画は使えません。パソコンのファイルを直接開いたときはYouTubeは使えないので、「マルチアングル起動.bat」かWeb版から開いてください。</p>
     </div>
@@ -544,7 +544,7 @@ const videoFiles = list => [...list].filter(f => f.type.startsWith('video/') || 
 /* ---------- state ---------- */
 const S = {
   title: '', jump: null, theater: false, theaterAuto: false,
-  angles: [], main: 0, layout: prefs.layout || (PHONE ? 'single' : 'focus'), playing: false, t: 0, rate: 1, muted: false,
+  angles: [], main: 0, layout: prefs.layout || (PHONE ? 'single' : 'focus'), playing: false, t: 0, rate: 1, muted: PHONE, forceMute: false,
   sync: false, markers: [], syncBackup: null, reel: null, filter: 'all', shared: false,
   light: prefs.light == null ? PHONE : prefs.light, holdAt: 0, stalls: [], stallHinted: false
 };
@@ -580,7 +580,10 @@ class YTSrc {
   }
   // an ad shows as "unstarted" (-1) while we want playback; during it the player reports the ad's time and ignores seeks
   get adLike() { return this.want && this.state === -1; }
-  get inAd() { return this.adLike && now() - this.playAt > 1500; }
+  // a real ad: the player is sending progress for something that is not this video (the ad's own length)
+  get inAd() { const ps = this.ps; return this.adLike && !!ps && now() - ps.at < 1500 && !!this.vdur && Math.abs(ps.dur - this.vdur) > 1; }
+  // asked to play but nothing moves and no ad: usually the phone's browser refused to start it (sound on)
+  get blocked() { return this.want && [-1, 2, 5].includes(this.state) && !this.inAd && now() - this.playAt > 2000 && now() - this.lastSeek > 2000; }
   get buffering() { return this.want && (this.state === 3 || this.state === -1 || this.state === 5); }
   get time() {
     if (now() - this.lastSeek < 500) return this.target;
@@ -630,7 +633,7 @@ window.addEventListener('message', e => {
 });
 function adLeft(a) {
   const s = a.src, ps = s.ps;
-  if (!s.adLike || !ps || now() - ps.at > 4000 || !ps.dur) return null;
+  if (!s.inAd || !ps || !ps.dur) return null;
   if (Math.abs(ps.dur - a.dur) < 1) return null; // that's the video itself, not an ad
   return Math.max(0, ps.dur - ps.cur - (now() - ps.at) / 1000);
 }
@@ -861,6 +864,7 @@ function onLoaded(a) {
     if (p.label) a.label = p.label;
   }
   a.pending = null; a.want = null;
+  a.src.vdur = a.dur;
   if (!S.mainChosen) S.main = Math.max(0, S.angles.findIndex(x => x.ready));
   if (!S.angles.some(x => x.pending)) {
     S.shared = false;
@@ -924,6 +928,7 @@ function loadYouTube(a, id) {
         onStateChange: e => {
           src.onState(e.data);
           if (e.data === 1) {
+            a.el.classList.remove('tapme');
             // YouTube may switch captions on (account setting / auto captions) whenever playback starts
             hideCaptions(player); clearTimeout(src.capT); src.capT = setTimeout(() => hideCaptions(player), 1500);
             if (!src.want) player.pauseVideo();
@@ -1111,7 +1116,18 @@ function startMove(e, a, what) {
 window.addEventListener('resize', () => { layoutTiles(); });
 
 /* ---------- playback & sync engine ---------- */
-function applyAudio() { S.angles.forEach((a, i) => a.src.setMuted((i !== S.main) || S.muted)); }
+function applyAudio() { S.angles.forEach((a, i) => a.src.setMuted((i !== S.main) || S.muted || S.forceMute)); }
+function handleBlocked(a) {
+  const s = a.src;
+  if (!s.triedMuted) {
+    // phones only allow automatic playback without sound: try again muted
+    s.triedMuted = true; S.forceMute = true; applyAudio(); render();
+    s.playAt = now(); try { s.p.playVideo(); } catch (e) {}
+    toast('スマホの決まりで、音なしで再生します。音を出すには「音なし」ボタンを押してください', 5000);
+  } else if (!a.el.classList.contains('tapme') && now() - s.playAt > 2500) {
+    a.el.classList.add('tapme'); // let the viewer press YouTube's own play button once
+  }
+}
 function setMain(i) {
   if (!S.angles[i]) return;
   S.mainChosen = true;
@@ -1198,6 +1214,7 @@ function tick(ts) {
     const m = mainA(), ms = m && m.src;
     let hold = false;
     if (m && m.ready && inRange(m, S.t)) {
+      if (ms.blocked) handleBlocked(m);
       if (ms.inAd || ms.buffering) {
         // the main angle is loading (or showing an ad): stop the clock and let the others wait,
         // so they don't race ahead and keep re-loading
@@ -1550,8 +1567,8 @@ function render() {
   $('#start').hidden = !!n;
   $('#track').classList.toggle('disabled', S.sync);
   $('#syncBtn').classList.toggle('on', S.sync);
-  $('#mute').textContent = S.muted ? '消音' : '音';
-  $('#mute').classList.toggle('on', S.muted);
+  $('#mute').textContent = (S.muted || S.forceMute) ? '音なし' : '音あり';
+  $('#mute').classList.toggle('on', S.muted || S.forceMute);
   $('#resumeBtn').hidden = !!n || !store.get('mav:last', null);
   $('#angCnt').textContent = n;
   const hasV = loaded().length > 0;
@@ -1569,7 +1586,7 @@ function render() {
     want.hidden = !a.want || !!a.kind;
     want.textContent = a.want ? `「${a.want}」を選んでください` : '';
     el.querySelector('.yt').hidden = a.kind !== 'yt';
-    el.querySelector('.aud').hidden = !(i === S.main && !S.muted && a.ready);
+    el.querySelector('.aud').hidden = !(i === S.main && !S.muted && !S.forceMute && a.ready);
     el.querySelector('.scrub').max = a.dur || 1;
   });
   layoutTiles();
@@ -1667,6 +1684,10 @@ function paint() {
     note.hidden = false;
     $('#adLeft').textContent = left != null ? `広告 あと ${Math.ceil(left)} 秒` : '広告中';
     $('#adSub').textContent = left != null ? '終わると自動で再開します（スキップが出たら押せます）' : '終わると自動で再開します。広告が続く場合もあります';
+  } else if (ma && ma.el.classList.contains('tapme') && S.playing) {
+    note.hidden = false;
+    $('#adLeft').textContent = '映像をタップして再生';
+    $('#adSub').textContent = 'スマホの決まりで、最初の1回だけ映像の真ん中の再生ボタンを直接押す必要があります';
   } else note.hidden = true;
   if (now() - lastCur > 250) {
     lastCur = now();
@@ -1722,7 +1743,11 @@ $('#play').addEventListener('click', () => S.sync ? null : togglePlay());
 $('#replay').addEventListener('click', replay);
 document.querySelectorAll('[data-seek]').forEach(b => b.addEventListener('click', () => S.sync ? nudgeTile(mainA(), +b.dataset.seek) : seekRel(+b.dataset.seek)));
 document.querySelectorAll('[data-frame]').forEach(b => b.addEventListener('click', () => S.sync ? nudgeTile(mainA(), b.dataset.frame * FRAME) : frameStep(+b.dataset.frame)));
-$('#mute').addEventListener('click', () => { S.muted = !S.muted; applyAudio(); render(); });
+function toggleMute() {
+  if (S.muted || S.forceMute) { S.muted = false; S.forceMute = false; } else S.muted = true;
+  applyAudio(); render();
+}
+$('#mute').addEventListener('click', toggleMute);
 $('#light').addEventListener('click', () => { setLight(!S.light); toast(S.light ? '軽量：メインだけ再生し、ほかは止めた絵で待機します' : '全部のアングルを同時に再生します', 3000); });
 $('#syncBtn').addEventListener('click', () => S.sync ? cancelSync() : enterSync());
 function toggleFs() {
@@ -1787,7 +1812,7 @@ document.addEventListener('keydown', e => {
     case 'KeyN': reelGo(1); return;
     case 'KeyP': reelGo(-1); return;
     case 'KeyG': { const order = wide() ? ['focus', 'grid', 'single', 'custom'] : ['focus', 'grid', 'single']; setLayout(order[(order.indexOf(S.layout) + 1) % order.length]); return; }
-    case 'KeyM': S.muted = !S.muted; applyAudio(); render(); return;
+    case 'KeyM': toggleMute(); return;
     case 'KeyF': toggleFs(); return;
     case 'KeyS': S.sync ? cancelSync() : enterSync(); return;
     case 'KeyB': addMarker(TAGS[5]); return;
