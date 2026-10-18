@@ -78,6 +78,13 @@ button{cursor:pointer}
 .adnote b{display:block;font-size:22px;font-family:var(--mono);color:#fff;font-variant-numeric:tabular-nums}
 .adnote span{display:block;font-size:12px;color:var(--muted);margin-top:2px}
 .app.theater .adnote{top:calc(60px + env(safe-area-inset-top,0px))}
+/* "tap to start" note sits low and small so it never covers the picture's middle */
+.adnote.low{top:auto;bottom:8px;padding:5px 12px}
+.adnote.low b{font-size:14px;font-family:var(--body)}
+.adnote.low span{font-size:11px}
+.app.theater .adnote.low{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto;max-width:calc(100% - 140px)}
+.app.needtap .tcenter{display:none!important}
+.tile.tapme .ctime{display:none}
 .tile.held .ctime::after{content:" ・停止中";color:var(--muted)}
 .tile:not(.loaded) .ctime,.tile:not(.loaded) .tbar .chip2{display:none}
 .rz{position:absolute;right:0;bottom:0;width:22px;height:22px;z-index:4;cursor:nwse-resize;display:none;touch-action:none;
@@ -338,6 +345,7 @@ body.theater-on .mbar{display:none!important}
       <p><strong>アプリの中のブラウザで開いています。</strong>動画がうまく再生されないことがあります。右上（または右下）のメニューから「ブラウザで開く」「Chromeで開く」「Safariで開く」を選んでください。</p>
       <button class="btn" id="inappClose">このまま使う</button>
     </div>
+    <div class="banner" id="tapbar" hidden><p><strong>▶ 下の映像をタップすると再生が始まります。</strong>スマホでは最初の1回だけ必要です（映像のどこを押しても大丈夫です）。</p></div>
     <div class="banner" id="syncbar" hidden></div>
     <div class="banner" id="reelbar" hidden>
       <p id="reelText"></p>
@@ -1717,16 +1725,21 @@ function paint() {
   });
   // a notice in the middle of the picture while the main angle shows an ad
   const ma = mainA(), note = $('#adnote');
+  const needTap = !!(ma && ma.el.classList.contains('tapme') && S.playing);
+  $('#app').classList.toggle('needtap', needTap);
+  note.classList.toggle('low', needTap);
   if (ma && ma.ready && ma.src.inAd && S.playing) {
     const left = adLeft(ma);
     note.hidden = false;
     $('#adLeft').textContent = left != null ? `広告 あと ${Math.ceil(left)} 秒` : '広告中';
     $('#adSub').textContent = left != null ? '終わると自動で再開します（スキップが出たら押せます）' : '終わると自動で再開します。広告が続く場合もあります';
-  } else if (ma && ma.el.classList.contains('tapme') && S.playing) {
+  } else if (needTap && S.theater) {
+    // keep the middle of the picture free: YouTube's own play button is there, and a tap anywhere on the picture starts it
     note.hidden = false;
-    $('#adLeft').textContent = '映像をタップして再生';
-    $('#adSub').textContent = 'スマホの決まりで、最初の1回だけ映像の真ん中の再生ボタンを直接押す必要があります';
+    $('#adLeft').textContent = '▶ 映像をタップすると再生が始まります';
+    $('#adSub').textContent = 'スマホでは最初の1回だけ必要です';
   } else note.hidden = true;
+  $('#tapbar').hidden = !(needTap && !S.theater);
   if (now() - lastCur > 250) {
     lastCur = now();
     S.markers.forEach(mk => { const r = rowById[mk.id]; if (r) r.classList.toggle('cur', S.t >= mk.t - prefs.pre && S.t <= mk.t + prefs.post); });
