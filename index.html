@@ -249,7 +249,20 @@ body.theater-on .mbar{display:none!important}
   padding:28px max(14px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(14px,env(safe-area-inset-left,0px));
   background:linear-gradient(transparent,#000d 45%);transition:opacity .25s}
 .app.theater .tclose{display:block;position:absolute;z-index:30;top:calc(8px + env(safe-area-inset-top,0px));right:calc(10px + env(safe-area-inset-right,0px));transition:opacity .25s}
-.app.theater.idle .tctl,.app.theater.idle .tclose{opacity:0;pointer-events:none}
+.app.theater.idle .tctl,.app.theater.idle .tclose,.app.theater.idle .tcenter{opacity:0;pointer-events:none}
+.app.theater.idle .tcenter button,.app.theater.idle .tctl *{pointer-events:none}
+.tcenter,.tflash{display:none}
+.app.theater .tcenter{display:flex;position:absolute;inset:0;z-index:29;align-items:center;justify-content:center;gap:clamp(28px,9vw,80px);pointer-events:none;background:#0004;transition:opacity .25s}
+.app.theater.idle .tcenter{background:transparent}
+.tcenter button{pointer-events:auto;display:grid;place-items:center;border-radius:50%;border:0;color:#fff;background:#0008}
+.tcenter .tbig{width:76px;height:76px}
+.tcenter .tbig svg{width:30px;height:30px;fill:#fff}
+.tcenter .tskip{position:relative;width:56px;height:56px}
+.tcenter .tskip svg{width:30px;height:30px;fill:#fff}
+.tcenter .tskip span{position:absolute;font-size:10px;font-weight:700;top:50%;left:50%;transform:translate(-50%,-30%)}
+.app.theater .tflash{display:block;position:absolute;top:50%;left:12%;transform:translateY(-50%);z-index:31;background:#000a;color:#fff;border-radius:24px;padding:10px 18px;font-size:16px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .3s}
+.app.theater .tflash.r{left:auto;right:12%}
+.app.theater .tflash.show{opacity:1;transition:none}
 .app.theater.idle .tbar{opacity:.35}
 .tctl .prog{position:relative;height:24px;touch-action:none;cursor:pointer}
 .tctl .prog i{position:absolute;left:0;right:0;top:10px;height:4px;border-radius:2px;background:#fff4}
@@ -351,13 +364,17 @@ body.theater-on .mbar{display:none!important}
       <div class="prog" id="tProg"><i></i><span id="tMarks"></span><b id="tFill"></b><u id="tHead"></u></div>
       <div class="cams" id="tCams"></div>
       <div class="row">
-        <button class="tplay" id="tPlay" aria-label="再生"><svg viewBox="0 0 16 16"><path d="M3 1.5v13l11-6.5z"/></svg></button>
-        <button id="tBack">↺5秒</button>
         <span class="tt" id="tTime">0:00</span>
         <span class="grow"></span>
         <button class="ttag" id="tTag">＋タグ</button>
       </div>
     </div>
+    <div class="tcenter" id="tcenter">
+      <button class="tskip" id="tBack" aria-label="10秒戻す"><svg viewBox="0 0 24 24"><path d="M12 5V2L7 6l5 4V7a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z"/></svg><span>10</span></button>
+      <button class="tbig" id="tPlay" aria-label="再生"><svg viewBox="0 0 16 16"><path d="M3 1.5v13l11-6.5z"/></svg></button>
+      <button class="tskip" id="tFwd" aria-label="10秒進める"><svg viewBox="0 0 24 24"><path d="M12 5V2l5 4-5 4V7a6 6 0 1 0 6 6h2a8 8 0 1 1-8-8z"/></svg><span>10</span></button>
+    </div>
+    <div class="tflash" id="tFlashL">−10秒</div><div class="tflash r" id="tFlashR">+10秒</div>
   </div>
 
   <section class="transport">
@@ -421,7 +438,7 @@ body.theater-on .mbar{display:none!important}
       <ol class="howto">
         <li>最初は「1画面」：1本を大きく映し、映像の下のボタンで見たいアングルに切り替えます。左右にスワイプ、下のバーの「◀ 画角／画角 ▶」でも切り替わります</li>
         <li>下のバーで再生・5秒戻し・タグ付け</li>
-        <li>横向きにすると、映像が画面いっぱいになります（縦のままでも「全画面」で同じ表示）。操作ボタンは映像の上に重なり、再生中は3秒で消えます。映像をタップすると出てきます。左右スワイプか番号ボタンでアングル切り替え、「× 戻る」で元の画面へ</li>
+        <li>横向きにすると、映像が画面いっぱいになります（縦のままでも「全画面」で同じ表示）。操作はYouTubeアプリと同じで、映像をタップすると操作バーが出たり消えたりします（再生は止まりません）。再生・停止は真ん中のボタン、その左右で10秒戻す／進む。画面の左側・右側をダブルタップでも10秒戻る／進む。再生中は3秒で操作バーが消えます。左右スワイプか番号ボタンでアングル切り替え、「× 戻る」で元の画面へ</li>
         <li>スマホは通信を軽くするため、最初はメインだけ再生します（「軽量：オン」）。全部同時に動かすには「軽量」を押してオフに</li>
       </ol>
       <h3>並べ方と大きさ</h3>
@@ -780,11 +797,10 @@ function buildTile(a) {
     const i = idx(a);
     if (!a.ready) { if (S.main !== i) setMain(i); return; }
     if (S.sync) { if (i === S.main) { a.src.paused ? a.src.play() : a.src.pause(); } return; }
-    if (S.theater && $('#app').classList.contains('idle')) { poke(); return; }
-    if (S.theater) poke();
+    if (S.theater) { theaterTap(e); return; }
     if (i === S.main) { togglePlay(); flashPlay(a); } else setMain(i);
   });
-  el.addEventListener('dblclick', e => { if (idx(a) === S.main && a.ready && !S.sync && !e.target.closest('button,input,.nudge')) toggleFs(); });
+  el.addEventListener('dblclick', e => { if (!S.theater && idx(a) === S.main && a.ready && !S.sync && !e.target.closest('button,input,.nudge')) toggleFs(); });
   el.addEventListener('wheel', e => {
     if (!(e.ctrlKey || e.metaKey) || !a.ready) return;
     e.preventDefault(); e.stopPropagation();
@@ -1197,7 +1213,7 @@ function play() {
   const [a0, tMax] = range();
   if (S.t >= tMax - 0.05) seekAll(a0);
   S.playing = true; S.holdAt = 0; loaded().forEach(drive); updatePlayIcon();
-  if (S.light && PHONE && loaded().length > 1 && !prefs.lightHinted) {
+  if (S.light && PHONE && !S.theater && loaded().length > 1 && !prefs.lightHinted) {
     prefs.lightHinted = true; savePrefs();
     toast('スマホでは通信を軽くするため、メインだけ再生しています。全部同時に動かすには「軽量」をオフに', 6000);
   }
@@ -1855,10 +1871,31 @@ $('#mBig').addEventListener('click', () => enterTheater(false, true));
 
 /* ---------- big view ---------- */
 let idleT = 0;
+// controls show, then fade after 3 s of playback (they stay while paused) — like the YouTube app
 function poke() {
   $('#app').classList.remove('idle');
   clearTimeout(idleT);
   idleT = setTimeout(() => { if (S.theater && S.playing) $('#app').classList.add('idle'); }, 3000);
+}
+function hideControls() { clearTimeout(idleT); $('#app').classList.add('idle'); }
+let lastTap = null, tapT = 0;
+function theaterTap(e) {
+  const t = now(), x = e.clientX, W = innerWidth;
+  if (lastTap && t - lastTap.t < 300 && Math.abs(x - lastTap.x) < 90) {
+    // double tap: left side back 10 s, right side forward 10 s
+    clearTimeout(tapT); lastTap = null;
+    const d = x < W / 2 ? -10 : 10;
+    seekRel(d); flashSkip(d);
+    return;
+  }
+  lastTap = {t, x};
+  clearTimeout(tapT);
+  tapT = setTimeout(() => { lastTap = null; $('#app').classList.contains('idle') ? poke() : hideControls(); }, 260);
+}
+function flashSkip(d) {
+  const el = d < 0 ? $('#tFlashL') : $('#tFlashR');
+  el.textContent = (d < 0 ? '−' : '+') + Math.abs(d) + '秒';
+  el.classList.add('show'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), 450);
 }
 function enterTheater(auto, real) {
   if (!loaded().length) { toast('先に動画を読み込んでください'); return; }
@@ -1891,8 +1928,11 @@ function renderTheaterCams() {
   });
 }
 $('#tClose').addEventListener('click', exitTheater);
-$('#tPlay').addEventListener('click', () => { togglePlay(); poke(); });
-$('#tBack').addEventListener('click', () => { replay(); poke(); });
+$('#tPlay').addEventListener('click', e => { e.stopPropagation(); togglePlay(); poke(); });
+$('#tBack').addEventListener('click', e => { e.stopPropagation(); seekRel(-10); flashSkip(-10); poke(); });
+$('#tFwd').addEventListener('click', e => { e.stopPropagation(); seekRel(10); flashSkip(10); poke(); });
+// a tap on the dimmed area around the centre buttons behaves like a tap on the picture
+$('#tcenter').addEventListener('click', e => { if (e.target === e.currentTarget) theaterTap(e); });
 $('#tTag').addEventListener('click', () => { openTagSheet(); poke(); });
 ['pointerdown', 'pointermove'].forEach(ev => $('#tctl').addEventListener(ev, poke));
 (() => {
