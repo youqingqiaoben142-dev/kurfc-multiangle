@@ -563,7 +563,11 @@ function drive(a) {
     else s.setRate(S.rate);
   } else {
     // YouTube only allows fixed speeds, so correct by jumping (aim slightly ahead to cover buffering)
-    if (Math.abs(drift) > 0.4) s.time = tgt + 0.25 * S.rate;
+    // ignore a single odd reading; only jump when the gap lasts a moment
+    if (Math.abs(drift) > 0.4) {
+      if (!s.driftAt) s.driftAt = now();
+      else if (now() - s.driftAt > 350) { s.time = tgt + 0.25 * S.rate; s.driftAt = 0; }
+    } else s.driftAt = 0;
     s.setRate(S.rate);
   }
 }
