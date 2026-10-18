@@ -1,0 +1,867 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>KURFC マルチアングル</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;600&family=Noto+Sans+JP:wght@400;500;700&display=swap">
+<style>
+/* Layout: broadcast multiview monitor — one program feed large, other cameras as preview monitors, shared transport below, analyst panel at right */
+:root{
+  color-scheme:dark;
+  --bg:#121012; --panel:#1a1719; --raise:#252125; --line:#363035; --fg:#ece6e7; --muted:#9d9195;
+  --enji:#6f3036; --enji-hi:#c25563; --tally:#e04452; --ok:#4fae8b;
+  --cond:'Barlow Condensed','Noto Sans JP',system-ui,sans-serif;
+  --body:'Noto Sans JP',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,Consolas,monospace;
+}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:13px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));box-sizing:border-box}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--enji-hi);outline-offset:2px}
+.app{height:100%;display:grid;grid-template-columns:minmax(0,1fr) 300px;grid-template-rows:auto minmax(0,1fr) auto;gap:10px 14px;padding-block:10px}
+
+/* header */
+.bar{grid-column:1/-1;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px}
+.brand b{font-family:var(--cond);font-weight:700;letter-spacing:.08em;background:var(--enji);color:#fff;padding:3px 8px 2px;border-radius:2px;font-size:15px}
+.brand span{font-weight:700;font-size:15px;letter-spacing:.04em}
+.bar .sp{flex:1}
+.btn{background:var(--raise);border:1px solid var(--line);border-radius:4px;padding:6px 11px;line-height:1.2;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.pri{background:var(--enji);border-color:var(--enji-hi);color:#fff}
+.btn.on{background:var(--enji);border-color:var(--enji-hi);color:#fff}
+.btn:disabled{opacity:.4;cursor:default}
+
+/* stage */
+.stagewrap{grid-column:1;grid-row:2;display:flex;flex-direction:column;gap:8px;min-height:0;min-width:0}
+.syncbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:color-mix(in srgb,var(--enji) 35%,var(--panel));border:1px solid var(--enji-hi);border-radius:4px;padding:8px 12px}
+.syncbar p{margin:0;flex:1;min-width:220px;line-height:1.5}
+.stage{flex:1;min-height:0;display:grid;gap:6px}
+.stage.focus{grid-template-columns:minmax(0,3fr) minmax(0,1fr);grid-template-rows:repeat(3,minmax(0,1fr))}
+.stage.focus .tile.main{grid-column:1;grid-row:1 / span 3}
+.stage.grid{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr))}
+.tile{position:relative;background:#000;border:1px solid var(--line);border-radius:4px;overflow:hidden;min-height:0;cursor:pointer}
+.tile.main{border-color:var(--tally);box-shadow:0 0 0 1px var(--tally)}
+.tile video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
+.tile.dragover{outline:2px dashed var(--enji-hi);outline-offset:-6px}
+.ytwrap{position:absolute;inset:0;pointer-events:none;background:#000}
+.ytwrap iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.tile:not(.is-yt) .ytwrap,.tile.is-yt video{display:none}
+.ytform{display:flex;gap:4px;width:min(100%,340px)}
+.ytform input{flex:1;min-width:0;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:5px 8px;font-size:12px}
+.ytform button{padding:5px 9px}
+.ytnote{color:var(--muted);font-size:11px;line-height:1.5;max-width:300px}
+.srcicon{font-family:var(--cond);font-size:10px;letter-spacing:.08em;background:#000a;border:1px solid #fff3;padding:1px 4px;border-radius:2px}
+.tally{position:absolute;left:6px;top:6px;display:flex;align-items:center;gap:6px;z-index:2;pointer-events:none;max-width:calc(100% - 12px)}
+.tally .num{font-family:var(--cond);font-weight:700;font-size:13px;min-width:20px;text-align:center;background:#000c;border:1px solid #fff4;border-radius:2px;padding:1px 5px 0}
+.tile.main .tally .num{background:var(--tally);border-color:var(--tally);color:#fff}
+.tally .lbl{font-size:12px;background:#000a;padding:2px 6px;border-radius:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tally .aud{font-family:var(--cond);font-size:11px;letter-spacing:.1em;color:#fff;background:#000a;padding:2px 5px;border-radius:2px}
+.ctime{position:absolute;right:6px;bottom:6px;z-index:2;font-family:var(--mono);font-size:11px;background:#000a;padding:1px 5px;border-radius:2px;pointer-events:none;font-variant-numeric:tabular-nums}
+.tile:not(.loaded) .ctime,.tile:not(.loaded) .tally{display:none}
+.oor,.err{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:12px;background:#000c;z-index:1;color:var(--muted);font-size:12px;line-height:1.6}
+.tile:not(.is-oor) .oor{display:none}
+.empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:10px;text-align:center;
+  background:repeating-linear-gradient(90deg,transparent 0 calc(10% - 1px),#ffffff08 calc(10% - 1px) 10%),var(--panel)}
+.tile.loaded .empty{display:none}
+.empty .enum{font-family:var(--cond);font-weight:600;letter-spacing:.14em;color:var(--muted);font-size:12px}
+.empty strong{font-size:14px}
+.empty .hint{color:var(--muted);font-size:11px}
+.tile:not(.main) .empty .hint{display:none}
+.nudge{position:absolute;left:0;right:0;bottom:0;z-index:3;background:#000d;padding:6px;display:flex;flex-direction:column;gap:5px}
+.stage:not(.syncing) .nudge,.tile:not(.loaded) .nudge{display:none}
+.nudge input[type=range]{width:100%;accent-color:var(--enji-hi)}
+.nbtns{display:flex;gap:3px;flex-wrap:wrap;justify-content:center}
+.nbtns button{background:var(--raise);border:1px solid var(--line);border-radius:3px;padding:2px 6px;font-size:11px;font-family:var(--mono)}
+.stage.syncing .ctime{bottom:auto;top:6px}
+
+/* transport */
+.transport{grid-column:1;grid-row:3;display:flex;flex-direction:column;gap:8px;min-width:0}
+.track{position:relative;height:42px;background:var(--panel);border:1px solid var(--line);border-radius:4px;cursor:pointer;touch-action:none;user-select:none}
+.track.disabled{opacity:.4;pointer-events:none}
+.track .rail{position:absolute;left:8px;right:8px;top:8px;height:8px;background:var(--raise);border-radius:4px}
+.track .fill{position:absolute;left:0;top:0;bottom:0;background:var(--enji);border-radius:4px}
+.lanes{position:absolute;left:8px;right:8px;top:21px;display:flex;flex-direction:column;gap:2px}
+.lane{position:relative;height:3px}
+.lane i{position:absolute;top:0;bottom:0;background:var(--muted);opacity:.55;border-radius:2px}
+.lane.main i{background:var(--tally);opacity:.9}
+.marks{position:absolute;left:8px;right:8px;top:2px;height:20px;pointer-events:none}
+.marks i{position:absolute;top:0;width:2px;height:20px;margin-left:-1px;border-radius:1px}
+.head{position:absolute;top:2px;bottom:2px;width:2px;margin-left:-1px;background:#fff;pointer-events:none;border-radius:1px}
+.track .inner{position:absolute;left:8px;right:8px;top:0;bottom:0}
+.ctrls{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.play{width:42px;height:34px;display:grid;place-items:center;background:var(--enji);border:1px solid var(--enji-hi);border-radius:4px;color:#fff}
+.play svg{width:16px;height:16px;fill:currentColor}
+.tc{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:15px;padding:0 8px;white-space:nowrap}
+.tc small{color:var(--muted);font-size:12px}
+.ctrls .sp{flex:1}
+select.btn{padding:5px 8px}
+
+/* panel */
+.panel{grid-column:2;grid-row:2 / span 2;background:var(--panel);border:1px solid var(--line);border-radius:4px;overflow:auto;min-height:0;display:flex;flex-direction:column}
+.panel section{padding:12px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.panel h2{margin:0;font-family:var(--cond);font-weight:600;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:8px}
+.panel h2 .sp{flex:1}
+.arow{display:grid;grid-template-columns:22px minmax(0,1fr);gap:4px 8px;padding:6px 0;border-top:1px solid #ffffff0a}
+.arow:first-of-type{border-top:0}
+.arow .num{font-family:var(--cond);font-weight:700;text-align:center;border:1px solid var(--line);border-radius:2px;height:20px;line-height:19px}
+.arow.main .num{background:var(--tally);border-color:var(--tally);color:#fff}
+.arow input.alabel{background:transparent;border:1px solid transparent;border-radius:3px;padding:1px 4px;min-width:0;width:100%;font-weight:500}
+.arow input.alabel:hover,.arow input.alabel:focus{border-color:var(--line);background:var(--bg)}
+.arow .meta{grid-column:2;color:var(--muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arow .offs{grid-column:2;display:flex;align-items:center;gap:2px;flex-wrap:wrap}
+.arow .offs button{padding:1px 4px!important}
+.arow .offs button,.arow .acts button{background:var(--raise);border:1px solid var(--line);border-radius:3px;padding:1px 6px;font-size:11px}
+.arow .offs output{font-family:var(--mono);font-size:11px;min-width:50px;text-align:center;font-variant-numeric:tabular-nums}
+.arow .offs .k{color:var(--muted);font-size:11px;margin-right:2px}
+.arow .acts{grid-column:2;display:flex;gap:4px}
+.tags{display:grid;grid-template-columns:repeat(2,1fr);gap:4px}
+.tags button{background:var(--raise);border:1px solid var(--line);border-left:3px solid var(--c);border-radius:3px;padding:5px 8px;font-size:12px;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:4px;white-space:nowrap}
+.tags button kbd{font-size:10px;line-height:1.4}
+.mlist{display:flex;flex-direction:column;gap:2px;max-height:none}
+.mrow{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;gap:6px;align-items:center;padding:3px 0}
+.mrow .mt{font-family:var(--mono);font-size:12px;background:none;border:0;padding:2px 4px;border-radius:3px;color:var(--fg);font-variant-numeric:tabular-nums}
+.mrow .mt:hover{background:var(--raise)}
+.mrow .chip{font-size:11px;padding:1px 6px;border-radius:2px;border:1px solid var(--c);color:var(--fg);white-space:nowrap}
+.mrow input{background:transparent;border:1px solid transparent;border-radius:3px;padding:1px 4px;min-width:0;font-size:12px}
+.mrow input:hover,.mrow input:focus{border-color:var(--line);background:var(--bg)}
+.mrow .x{background:none;border:0;color:var(--muted);padding:0 4px}
+.mempty{color:var(--muted);font-size:12px;line-height:1.6;margin:0}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:12px;margin:0}
+.keys dt{white-space:nowrap}
+.keys dd{margin:0;color:var(--muted)}
+kbd{font-family:var(--mono);font-size:11px;background:var(--raise);border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;padding:0 4px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--raise);border:1px solid var(--line);border-radius:4px;padding:8px 14px;z-index:20;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+textarea.copybox{width:100%;height:90px;background:var(--bg);border:1px solid var(--line);border-radius:3px;font-family:var(--mono);font-size:11px;color:var(--fg)}
+
+@media (max-width:900px){
+  html,body{height:auto}
+  .app{height:auto;grid-template-columns:minmax(0,1fr);grid-template-rows:auto}
+  .stagewrap,.transport,.panel{grid-column:1;grid-row:auto}
+  .stage.focus{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:auto auto}
+  .stage.focus .tile.main{grid-column:1 / -1;grid-row:1}
+  .stage.grid{grid-template-rows:auto auto}
+  .tile{aspect-ratio:16/9;max-width:100%}
+  .panel{overflow:visible}
+}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+</style>
+</head><body>
+
+<div class="app" id="app">
+  <header class="bar">
+    <div class="brand"><b>KURFC</b><span>マルチアングル</span></div>
+    <div class="sp"></div>
+    <button class="btn pri" id="bulk">動画をまとめて読み込む</button>
+    <input type="file" id="bulkInput" accept="video/*" multiple hidden>
+  </header>
+
+  <div class="stagewrap">
+    <div class="syncbar" id="syncbar" hidden>
+      <p><strong>同期を合わせる：</strong>各アングルを同じ瞬間（キックオフの笛など）に合わせてから「この位置で揃える」を押してください。映像をクリックで個別に再生／停止できます。</p>
+      <button class="btn pri" id="syncApply">この位置で揃える</button>
+      <button class="btn" id="syncCancel">やめる</button>
+    </div>
+    <main class="stage focus" id="stage"></main>
+  </div>
+
+  <section class="transport">
+    <div class="track" id="track">
+      <div class="marks" id="marks"></div>
+      <div class="rail"><div class="fill" id="fill"></div></div>
+      <div class="lanes" id="lanes"></div>
+      <div class="inner"><div class="head" id="head"></div></div>
+    </div>
+    <div class="ctrls">
+      <button class="play" id="play" aria-label="再生"><svg viewBox="0 0 16 16" id="playIcon"><path d="M3 1.5v13l11-6.5z"/></svg></button>
+      <button class="btn" data-seek="-5">−5秒</button>
+      <button class="btn" data-frame="-1">−1コマ</button>
+      <button class="btn" data-frame="1">+1コマ</button>
+      <button class="btn" data-seek="5">+5秒</button>
+      <div class="tc" id="tc">0:00.0 <small>/ 0:00</small></div>
+      <div class="sp"></div>
+      <select class="btn" id="rate" aria-label="再生速度">
+        <option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="0.75">0.75×</option>
+        <option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option>
+      </select>
+      <button class="btn" id="mute">音あり</button>
+      <button class="btn" id="layout">2×2表示</button>
+      <button class="btn" id="syncBtn">同期を合わせる</button>
+      <button class="btn" id="fs">全画面</button>
+    </div>
+  </section>
+
+  <aside class="panel">
+    <section>
+      <h2>アングル</h2>
+      <div id="alist"></div>
+    </section>
+    <section>
+      <h2>タグ<span class="sp"></span><button class="btn" id="copyMarks" style="padding:2px 8px;font-size:11px">一覧をコピー</button></h2>
+      <div class="tags" id="tags"></div>
+      <div class="mlist" id="mlist"></div>
+    </section>
+    <section>
+      <h2>ショートカット</h2>
+      <dl class="keys">
+        <dt><kbd>Space</kbd></dt><dd>再生／停止</dd>
+        <dt><kbd>1</kbd>〜<kbd>4</kbd></dt><dd>メインのアングルを切り替え</dd>
+        <dt><kbd>←</kbd><kbd>→</kbd></dt><dd>5秒戻す／進める（<kbd>Shift</kbd>で1秒）</dd>
+        <dt><kbd>,</kbd><kbd>.</kbd></dt><dd>1コマ戻す／進める</dd>
+        <dt><kbd>[</kbd><kbd>]</kbd></dt><dd>再生速度を下げる／上げる</dd>
+        <dt><kbd>G</kbd></dt><dd>大小表示と2×2表示の切り替え</dd>
+        <dt><kbd>S</kbd></dt><dd>同期を合わせる</dd>
+        <dt><kbd>Shift</kbd>+<kbd>1</kbd>〜<kbd>6</kbd></dt><dd>タグを付ける（<kbd>B</kbd>でメモ）</dd>
+        <dt><kbd>M</kbd> / <kbd>F</kbd></dt><dd>消音／全画面</dd>
+        <dt><kbd>Ctrl</kbd>+<kbd>V</kbd></dt><dd>コピーしたYouTubeのURLを空いている枠に追加</dd>
+      </dl>
+    </section>
+  </aside>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+const LABELS = ['スタンド中央', 'インゴール裏', 'タッチライン', 'ドローン'];
+const TAGS = [
+  {k:'try', name:'トライ', c:'#d9a441'}, {k:'scrum', name:'スクラム', c:'#5b8fd6'},
+  {k:'lineout', name:'ラインアウト', c:'#4fae8b'}, {k:'pen', name:'ペナルティ', c:'#e04452'},
+  {k:'kick', name:'キック', c:'#a07ad6'}, {k:'memo', name:'メモ', c:'#9d9195'}
+];
+const RATES = [0.25, 0.5, 0.75, 1, 1.5, 2];
+const FRAME = 1 / 30;
+const IS_FILE = location.protocol === 'file:';
+const $ = s => document.querySelector(s);
+const stage = $('#stage');
+
+const S = {
+  angles: LABELS.map((label, i) => ({i, label, kind:null, url:null, ytid:null, name:'', size:0, off:0, dur:0, ready:false, err:false})),
+  main: 0, layout: 'focus', playing: false, t: 0, rate: 1, muted: false, sync: false, markers: [], syncBackup: null
+};
+const tiles = [], videos = [], srcs = [];
+
+/* ---------- helpers ---------- */
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const loaded = () => S.angles.filter(a => a.ready);
+const now = () => performance.now();
+function fmt(t, dec = true) {
+  if (!isFinite(t)) t = 0;
+  const neg = t < 0; t = Math.abs(t);
+  const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = Math.floor(t % 60);
+  const ds = Math.floor((t % 1) * 10);
+  const core = h ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${m}:${String(s).padStart(2,'0')}`;
+  return (neg ? '-' : '') + core + (dec ? '.' + ds : '');
+}
+function range() {
+  const L = loaded();
+  if (!L.length) return [0, 0];
+  return [Math.min(...L.map(a => -a.off)), Math.max(...L.map(a => a.dur - a.off))];
+}
+let toastTimer;
+function toast(msg, ms = 1800) {
+  const el = $('#toast'); el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), ms);
+}
+const fileKey = a => a.kind === 'yt' ? 'yt:' + a.ytid : a.name + '|' + a.size;
+const setKey = () => loaded().map(fileKey).sort().join('//');
+function parseYouTube(text) {
+  if (!text) return null;
+  text = text.trim();
+  if (/^[\w-]{11}$/.test(text)) return text;
+  let u; try { u = new URL(text); } catch (e) { return null; }
+  const host = u.hostname.replace(/^www\.|^m\.|^music\./, '');
+  if (host === 'youtu.be') return (u.pathname.slice(1).match(/^[\w-]{11}/) || [])[0] || null;
+  if (host === 'youtube.com' || host === 'youtube-nocookie.com') {
+    const v = u.searchParams.get('v'); if (v && /^[\w-]{11}$/.test(v)) return v;
+    const m = u.pathname.match(/^\/(?:shorts|live|embed|v)\/([\w-]{11})/); if (m) return m[1];
+  }
+  return null;
+}
+
+/* ---------- playback sources (local file / YouTube) ---------- */
+class FileSrc {
+  constructor(v) { this.v = v; this.fine = true; }
+  get time() { return this.v.currentTime; } set time(x) { this.v.currentTime = x; }
+  get paused() { return this.v.paused; } get seeking() { return this.v.seeking; }
+  play() { const p = this.v.play(); if (p) p.catch(() => {}); }
+  pause() { this.v.pause(); }
+  setRate(r) { if (this.v.playbackRate !== r) this.v.playbackRate = r; }
+  setMuted(m) { this.v.muted = m; }
+  destroy() { this.v.pause(); this.v.removeAttribute('src'); this.v.load(); }
+}
+class YTSrc {
+  constructor(player) {
+    this.p = player; this.fine = false; this.want = false; this.state = -1;
+    this.target = 0; this.lastSeek = -1e9; this.lastFire = -1e9; this.timer = null; this.rate = 1;
+  }
+  get time() {
+    if (now() - this.lastSeek < 500) return this.target;
+    try { return this.p.getCurrentTime() || 0; } catch (e) { return 0; }
+  }
+  set time(x) {
+    this.target = x; this.lastSeek = now();
+    if (this.timer) return;
+    const fire = () => { this.timer = null; this.lastFire = now(); try { this.p.seekTo(this.target, true); } catch (e) {} };
+    if (now() - this.lastFire > 150) fire(); else this.timer = setTimeout(fire, 150);
+  }
+  get paused() { return !this.want; }
+  get seeking() { return this.state === 3 || now() - this.lastSeek < 900; }
+  play() { this.want = true; try { this.p.playVideo(); } catch (e) {} }
+  pause() { this.want = false; try { this.p.pauseVideo(); } catch (e) {} }
+  setRate(r) {
+    let rates = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+    try { const a = this.p.getAvailablePlaybackRates(); if (a && a.length) rates = a; } catch (e) {}
+    const rr = rates.reduce((b, x) => Math.abs(x - r) < Math.abs(b - r) ? x : b, rates[0]);
+    if (rr !== this.rate) { this.rate = rr; try { this.p.setPlaybackRate(rr); } catch (e) {} }
+  }
+  setMuted(m) { try { m ? this.p.mute() : this.p.unMute(); } catch (e) {} }
+  destroy() { clearTimeout(this.timer); try { this.p.destroy(); } catch (e) {} }
+}
+
+let ytPromise = null;
+function ensureYT() {
+  if (IS_FILE) return Promise.reject('file');
+  if (window.YT && window.YT.Player) return Promise.resolve();
+  if (ytPromise) return ytPromise;
+  ytPromise = new Promise((res, rej) => {
+    const prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => { if (prev) prev(); res(); };
+    const s = document.createElement('script');
+    s.src = 'https://www.youtube.com/iframe_api';
+    s.onerror = () => { ytPromise = null; rej('blocked'); };
+    document.head.appendChild(s);
+    setTimeout(() => { if (!(window.YT && window.YT.Player)) { ytPromise = null; rej('timeout'); } }, 12000);
+  });
+  return ytPromise;
+}
+const YT_ERRORS = {
+  2: 'URLが正しくないようです。動画のURLをもう一度コピーしてください。',
+  5: 'この動画はブラウザで再生できません。',
+  100: '動画が見つかりません。削除されたか「非公開」になっています。',
+  101: 'この動画は投稿者が埋め込みを許可していません。YouTube Studioの「埋め込みを許可」をオンにしてください。',
+  150: 'この動画は投稿者が埋め込みを許可していません。YouTube Studioの「埋め込みを許可」をオンにしてください。',
+  153: 'YouTubeが再生を止めました（エラー153）。「起動.bat」かWeb版のURLから開き直してください。'
+};
+
+/* ---------- persistence (per set of sources) ---------- */
+function save() {
+  const L = loaded(); if (!L.length) return;
+  const offs = {}, labels = {};
+  L.forEach(a => { offs[fileKey(a)] = a.off; labels[fileKey(a)] = a.label; });
+  try { localStorage.setItem('mav:' + setKey(), JSON.stringify({offs, labels, markers: S.markers})); } catch (e) {}
+}
+function restore() {
+  let d = null;
+  try { d = JSON.parse(localStorage.getItem('mav:' + setKey()) || 'null'); } catch (e) {}
+  if (!d) return false;
+  loaded().forEach(a => {
+    const k = fileKey(a);
+    if (k in d.offs) a.off = d.offs[k];
+    if (d.labels && d.labels[k]) a.label = d.labels[k];
+  });
+  if (Array.isArray(d.markers) && d.markers.length) S.markers = d.markers;
+  return true;
+}
+
+/* ---------- tiles ---------- */
+S.angles.forEach((a, i) => {
+  const el = document.createElement('div');
+  el.className = 'tile'; el.dataset.i = i;
+  el.innerHTML = `
+    <video playsinline preload="auto" muted></video>
+    <div class="ytwrap"><div id="yt${i}"></div></div>
+    <div class="tally"><span class="num">${i+1}</span><span class="lbl"></span><span class="srcicon" hidden>YouTube</span><span class="aud" hidden>音声</span></div>
+    <div class="ctime"></div>
+    <div class="oor">このアングルはこの時間帯の映像がありません</div>
+    <div class="err" hidden></div>
+    <div class="empty">
+      <span class="enum">CAM ${i+1}</span><strong class="elbl"></strong>
+      <button class="btn pick">動画ファイルを選ぶ</button>
+      ${IS_FILE
+        ? '<span class="ytnote">YouTubeの動画は「起動.bat」かWeb版のURLから開くと使えます</span>'
+        : `<form class="ytform"><input type="url" id="yturl${i}" placeholder="YouTubeのURL" aria-label="アングル${i+1}のYouTubeのURL"><button class="btn" type="submit">読み込む</button></form>`}
+      <span class="hint">動画ファイルはここにドロップ</span>
+    </div>
+    <div class="nudge">
+      <input type="range" class="scrub" id="scrub${i}" min="0" max="1" step="0.01" value="0" aria-label="アングル${i+1}の位置">
+      <div class="nbtns">
+        <button data-d="-1">−1秒</button><button data-d="-0.1">−0.1</button><button data-d="${-FRAME}">−1コマ</button>
+        <button data-d="${FRAME}">+1コマ</button><button data-d="0.1">+0.1</button><button data-d="1">+1秒</button>
+      </div>
+    </div>
+    <input type="file" accept="video/*" hidden id="file${i}">`;
+  const v = el.querySelector('video');
+  const input = el.querySelector('input[type=file]');
+  el.querySelector('.pick').addEventListener('click', e => { e.stopPropagation(); input.click(); });
+  input.addEventListener('change', () => { if (input.files[0]) loadFile(i, input.files[0]); input.value = ''; });
+  const form = el.querySelector('.ytform');
+  if (form) form.addEventListener('submit', e => {
+    e.preventDefault(); e.stopPropagation();
+    const val = form.querySelector('input').value;
+    if (loadYouTube(i, val)) form.querySelector('input').value = '';
+  });
+  el.addEventListener('click', e => {
+    if (e.target.closest('button,input,form')) return;
+    if (!S.angles[i].ready) { if (S.main !== i) setMain(i); return; }
+    if (S.sync) { setMain(i); const s = srcs[i]; s.paused ? s.play() : s.pause(); return; }
+    setMain(i);
+  });
+  el.querySelectorAll('.nbtns button').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); nudgeTile(i, +b.dataset.d); }));
+  const scrub = el.querySelector('.scrub');
+  scrub.addEventListener('input', () => { srcs[i].time = +scrub.value; });
+  el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('dragover'); });
+  el.addEventListener('dragleave', () => el.classList.remove('dragover'));
+  el.addEventListener('drop', e => {
+    e.preventDefault(); e.stopPropagation(); el.classList.remove('dragover');
+    const files = videoFiles(e.dataTransfer.files);
+    if (files.length === 1) loadFile(i, files[0]);
+    else if (files.length) fillSlots(files, i);
+    else { const id = parseYouTube(e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain')); if (id) loadYouTube(i, id); }
+  });
+  v.addEventListener('loadedmetadata', () => {
+    const A = S.angles[i]; if (A.kind !== 'file') return;
+    A.dur = v.duration; onLoaded(i);
+  });
+  v.addEventListener('error', () => {
+    if (!v.getAttribute('src') || S.angles[i].kind !== 'file') return;
+    showError(i, 'このファイルはブラウザで再生できません。<br>H.265(HEVC)の場合はH.264のMP4に変換してください。');
+  });
+  stage.appendChild(el); tiles.push(el); videos.push(v); srcs.push(new FileSrc(v));
+});
+const videoFiles = list => [...list].filter(f => f.type.startsWith('video/') || /\.(mp4|mov|m4v|webm|mkv)$/i.test(f.name));
+
+function onLoaded(i) {
+  const A = S.angles[i]; A.ready = true; A.err = false;
+  const restored = restore();
+  if (!S.angles[S.main].ready) S.main = i;
+  applyAudio(); render(); renderPanel(); renderMarkers();
+  seekAll(S.t);
+  toast(restored ? `${A.label}を読み込み、前回の同期とタグを復元しました` : `${A.label}を読み込みました`);
+}
+function showError(i, html) {
+  const A = S.angles[i]; A.err = true; A.ready = false;
+  const box = tiles[i].querySelector('.err'); box.innerHTML = html; box.hidden = false;
+  tiles[i].classList.add('loaded'); render(); renderPanel();
+}
+function clearSlot(i) {
+  const A = S.angles[i];
+  srcs[i].pause(); srcs[i].destroy();
+  if (A.url) URL.revokeObjectURL(A.url);
+  if (A.kind === 'yt') {
+    tiles[i].querySelector('.ytwrap').innerHTML = `<div id="yt${i}"></div>`;
+    srcs[i] = new FileSrc(videos[i]);
+  }
+  Object.assign(A, {kind:null, url:null, ytid:null, name:'', size:0, dur:0, ready:false, err:false});
+  tiles[i].classList.remove('is-yt');
+  tiles[i].querySelector('.err').hidden = true;
+}
+function loadFile(i, file) {
+  clearSlot(i);
+  const A = S.angles[i];
+  if (!loaded().length) { S.t = 0; A.off = 0; }
+  Object.assign(A, {kind:'file', url: URL.createObjectURL(file), name: file.name, size: file.size});
+  tiles[i].classList.add('loaded');
+  videos[i].src = A.url; videos[i].load();
+  render(); renderPanel();
+}
+function loadYouTube(i, text) {
+  const id = parseYouTube(text);
+  if (!id) { toast('YouTubeの動画のURLを貼り付けてください'); return false; }
+  if (IS_FILE) { toast('YouTubeは「起動.bat」かWeb版のURLから開いたときに使えます', 3500); return false; }
+  clearSlot(i);
+  const A = S.angles[i];
+  if (!loaded().length) { S.t = 0; A.off = 0; }
+  Object.assign(A, {kind:'yt', ytid:id, name:'YouTube', size:0});
+  tiles[i].classList.add('loaded', 'is-yt');
+  render(); renderPanel();
+  ensureYT().then(() => {
+    if (A.kind !== 'yt' || A.ytid !== id) return;
+    let src;
+    const player = new YT.Player('yt' + i, {
+      videoId: id, width: '100%', height: '100%',
+      playerVars: {controls: 0, disablekb: 1, fs: 0, rel: 0, playsinline: 1, iv_load_policy: 3, modestbranding: 1, origin: location.origin},
+      events: {
+        onReady: () => {
+          if (A.kind !== 'yt' || A.ytid !== id) return;
+          player.mute();
+          try { const d = player.getVideoData(); if (d && d.title) A.name = d.title; } catch (e) {}
+          let tries = 0;
+          const waitDur = () => {
+            const d = player.getDuration();
+            if (d > 0) { A.dur = d; onLoaded(i); }
+            else if (++tries < 40) setTimeout(waitDur, 250);
+            else { // duration appears only after the first frame for some videos
+              src.time = 0.01; setTimeout(() => { A.dur = player.getDuration() || 0; if (A.dur > 0) onLoaded(i); else showError(i, 'YouTubeの動画の長さを読み取れませんでした。もう一度読み込んでください。'); }, 1500);
+            }
+          };
+          waitDur();
+        },
+        onStateChange: e => {
+          src.state = e.data;
+          if (e.data === 1 && !src.want) player.pauseVideo();
+        },
+        onError: e => showError(i, YT_ERRORS[e.data] || `YouTubeの動画を再生できません（エラー${e.data}）。`)
+      }
+    });
+    src = new YTSrc(player);
+    srcs[i] = src;
+  }).catch(reason => {
+    if (A.kind !== 'yt' || A.ytid !== id) return;
+    showError(i, reason === 'file'
+      ? 'YouTubeは「起動.bat」かWeb版のURLから開いたときに使えます。'
+      : 'YouTubeを読み込めませんでした。インターネットの接続を確認してください。<br>claude.aiの中ではYouTubeは使えないので、「起動.bat」かWeb版を使ってください。');
+  });
+  return true;
+}
+function unloadAngle(i) {
+  clearSlot(i);
+  const A = S.angles[i]; A.off = 0; A.label = LABELS[i];
+  tiles[i].classList.remove('loaded');
+  if (S.main === i) { const L = loaded(); if (L.length) S.main = L[0].i; }
+  applyAudio(); render(); renderPanel(); renderMarkers();
+}
+function emptySlots(start = 0) {
+  return [0,1,2,3].map(k => (start + k) % 4).filter(k => !S.angles[k].kind);
+}
+function fillSlots(files, start = 0) {
+  const empties = emptySlots(start);
+  files.slice(0, empties.length).forEach((f, n) => loadFile(empties[n], f));
+  if (files.length > empties.length) toast('空いている枠は4つまでです');
+}
+
+/* ---------- playback & sync engine ---------- */
+function applyAudio() {
+  srcs.forEach((s, i) => s.setMuted((i !== S.main) || S.muted));
+}
+function setMain(i) {
+  S.main = i; applyAudio(); render(); renderPanel();
+}
+function inRange(a, t) { const x = t + a.off; return x >= 0 && x <= a.dur - 0.05; }
+
+function drive(a) {
+  const s = srcs[a.i], tgt = S.t + a.off;
+  if (!inRange(a, S.t)) {
+    if (!s.paused) s.pause();
+    if (!s.seeking) { const edge = tgt < 0 ? 0 : a.dur - 0.05; if (Math.abs(s.time - edge) > 0.5) s.time = edge; }
+    return;
+  }
+  if (s.paused) {
+    if (Math.abs(s.time - tgt) > 0.1) s.time = tgt;
+    s.setRate(S.rate); s.play();
+    return;
+  }
+  if (a.i === S.main || s.seeking) { s.setRate(S.rate); return; }
+  const drift = s.time - tgt;
+  if (s.fine) {
+    if (Math.abs(drift) > 0.35) { s.time = tgt + 0.05 * S.rate; s.setRate(S.rate); }
+    else if (Math.abs(drift) > 0.03) s.setRate(S.rate * clamp(1 - drift * 2, 0.85, 1.15));
+    else s.setRate(S.rate);
+  } else {
+    // YouTube only allows fixed speeds, so correct by jumping (aim slightly ahead to cover buffering)
+    if (Math.abs(drift) > 0.4) s.time = tgt + 0.25 * S.rate;
+    s.setRate(S.rate);
+  }
+}
+function play() {
+  if (!loaded().length || S.sync) return;
+  const [a0, tMax] = range();
+  if (S.t >= tMax - 0.05) seekAll(a0);
+  S.playing = true; loaded().forEach(drive); updatePlayIcon();
+}
+function pause() {
+  S.playing = false; srcs.forEach(s => s.pause());
+  seekAll(S.t); updatePlayIcon();
+}
+const togglePlay = () => S.playing ? pause() : play();
+function seekAll(t) {
+  const [a0, a1] = range();
+  S.t = clamp(t, a0, a1);
+  loaded().forEach(a => {
+    srcs[a.i].time = clamp(S.t + a.off, 0, Math.max(0, a.dur - 0.05));
+    if (S.playing) drive(a);
+  });
+}
+const seekRel = d => seekAll(S.t + d);
+function frameStep(n) { if (S.playing) pause(); seekAll(S.t + n * FRAME); }
+function nudgeTile(i, d) {
+  const a = S.angles[i], s = srcs[i]; if (!a.ready) return;
+  s.pause(); s.time = clamp(s.time + d, 0, a.dur);
+}
+function setRate(r) { S.rate = r; $('#rate').value = String(r); srcs.forEach(s => s.setRate(r)); toast(`再生速度 ${r}×`); }
+function stepRate(dir) { const k = RATES.indexOf(S.rate); setRate(RATES[clamp((k < 0 ? 3 : k) + dir, 0, RATES.length - 1)]); }
+
+let last = now();
+function tick(ts) {
+  const dt = Math.min(0.25, (ts - last) / 1000); last = ts;
+  if (S.playing && !S.sync) {
+    const m = S.angles[S.main], ms = srcs[S.main];
+    if (m.ready && inRange(m, S.t)) {
+      // the main angle is the clock; while it buffers, hold time so the others wait
+      if (!ms.paused && !ms.seeking) S.t = ms.time - m.off;
+    } else S.t += dt * S.rate;
+    const [, tMax] = range();
+    if (S.t >= tMax) { S.t = tMax; pause(); }
+    else loaded().forEach(drive);
+  }
+  paint();
+  requestAnimationFrame(tick);
+}
+
+/* ---------- sync mode ---------- */
+function enterSync() {
+  if (!loaded().length) { toast('先に動画を読み込んでください'); return; }
+  if (S.playing) pause();
+  S.sync = true; S.syncBackup = {t: S.t, offs: S.angles.map(a => a.off)};
+  render();
+}
+function applySync() {
+  const L = loaded(); if (!L.length) return;
+  const ref = L[0], base = srcs[ref.i].time;
+  L.forEach(a => { a.off = srcs[a.i].time - base; srcs[a.i].pause(); });
+  S.t = base; S.sync = false; save();
+  render(); renderPanel(); seekAll(S.t); toast('同期しました');
+}
+function cancelSync() {
+  S.sync = false; srcs.forEach(s => s.pause());
+  if (S.syncBackup) { S.angles.forEach((a, k) => a.off = S.syncBackup.offs[k]); seekAll(S.syncBackup.t); }
+  render();
+}
+
+/* ---------- markers ---------- */
+function addMarker(tag) {
+  if (!loaded().length) { toast('先に動画を読み込んでください'); return; }
+  S.markers.push({id: Date.now() + '' + Math.random().toString(36).slice(2, 6), t: S.t, tag: tag.k, note: ''});
+  S.markers.sort((x, y) => x.t - y.t);
+  renderMarkers(); save(); toast(`${tag.name}  ${fmt(S.t)}`);
+}
+function renderMarkers() {
+  const list = $('#mlist'); list.innerHTML = '';
+  if (!S.markers.length) {
+    list.innerHTML = '<p class="mempty">プレーの場面でボタンを押すとタグが付き、一覧から一発でその場面に飛べます。</p>';
+  }
+  S.markers.forEach(m => {
+    const tag = TAGS.find(x => x.k === m.tag) || TAGS[5];
+    const row = document.createElement('div'); row.className = 'mrow';
+    row.innerHTML = `<button class="mt">${fmt(m.t)}</button><span class="chip" style="--c:${tag.c}">${tag.name}</span>
+      <input placeholder="メモ" aria-label="メモ"><button class="x" aria-label="削除">×</button>`;
+    const inp = row.querySelector('input'); inp.value = m.note;
+    inp.addEventListener('input', () => { m.note = inp.value; save(); });
+    row.querySelector('.mt').addEventListener('click', () => { seekAll(m.t); });
+    row.querySelector('.x').addEventListener('click', () => { S.markers = S.markers.filter(x => x !== m); renderMarkers(); save(); });
+    list.appendChild(row);
+  });
+  paintMarks();
+}
+function paintMarks() {
+  const [a0, a1] = range(), span = a1 - a0, box = $('#marks'); box.innerHTML = '';
+  if (span <= 0) return;
+  S.markers.forEach(m => {
+    const tag = TAGS.find(x => x.k === m.tag) || TAGS[5];
+    const i = document.createElement('i'); i.style.left = ((m.t - a0) / span * 100) + '%'; i.style.background = tag.c;
+    box.appendChild(i);
+  });
+}
+$('#copyMarks').addEventListener('click', () => {
+  if (!S.markers.length) { toast('タグがまだありません'); return; }
+  const text = S.markers.map(m => `${fmt(m.t)}\t${(TAGS.find(x => x.k === m.tag) || TAGS[5]).name}\t${m.note}`).join('\n');
+  const fallback = () => {
+    let ta = document.querySelector('.copybox');
+    if (!ta) { ta = document.createElement('textarea'); ta.className = 'copybox'; $('#mlist').after(ta); }
+    ta.value = text; ta.select(); toast('選択した文字をコピーしてください');
+  };
+  try { navigator.clipboard.writeText(text).then(() => toast('タグ一覧をコピーしました'), fallback); } catch (e) { fallback(); }
+});
+const tagBox = $('#tags');
+TAGS.forEach((tag, n) => {
+  const b = document.createElement('button'); b.style.setProperty('--c', tag.c);
+  b.innerHTML = `<span>${tag.name}</span><kbd>${n === 5 ? 'B' : '⇧' + (n + 1)}</kbd>`;
+  b.addEventListener('click', () => addMarker(tag));
+  tagBox.appendChild(b);
+});
+
+/* ---------- render ---------- */
+function render() {
+  stage.className = 'stage ' + S.layout + (S.sync ? ' syncing' : '');
+  $('#syncbar').hidden = !S.sync;
+  $('#track').classList.toggle('disabled', S.sync);
+  $('#syncBtn').classList.toggle('on', S.sync);
+  $('#layout').textContent = S.layout === 'focus' ? '2×2表示' : '大小表示';
+  $('#mute').textContent = S.muted ? '消音中' : '音あり';
+  $('#mute').classList.toggle('on', S.muted);
+  S.angles.forEach((a, i) => {
+    const el = tiles[i];
+    el.classList.toggle('main', i === S.main);
+    el.classList.toggle('loaded', !!a.kind);
+    el.querySelector('.lbl').textContent = a.label;
+    el.querySelector('.elbl').textContent = a.label;
+    el.querySelector('.srcicon').hidden = a.kind !== 'yt';
+    el.querySelector('.aud').hidden = !(i === S.main && !S.muted);
+    el.querySelector('.scrub').max = a.dur || 1;
+  });
+  renderLanes();
+}
+function renderLanes() {
+  const [a0, a1] = range(), span = a1 - a0, box = $('#lanes'); box.innerHTML = '';
+  S.angles.forEach(a => {
+    if (!a.ready) return;
+    const lane = document.createElement('div'); lane.className = 'lane' + (a.i === S.main ? ' main' : '');
+    const bar = document.createElement('i');
+    bar.style.left = span > 0 ? ((-a.off - a0) / span * 100) + '%' : '0';
+    bar.style.width = span > 0 ? (a.dur / span * 100) + '%' : '100%';
+    lane.title = `${a.i + 1} ${a.label}`;
+    lane.appendChild(bar); box.appendChild(lane);
+  });
+  paintMarks();
+}
+function renderPanel() {
+  const box = $('#alist'); box.innerHTML = '';
+  const L = loaded(), ref = L[0];
+  S.angles.forEach((a, i) => {
+    const row = document.createElement('div'); row.className = 'arow' + (i === S.main ? ' main' : '');
+    const kindName = a.kind === 'yt' ? 'YouTube・' : '';
+    const meta = a.err ? '再生できません' : a.ready ? `${kindName}${a.name}・${fmt(a.dur, false)}` : a.kind ? '読み込み中…' : '未読み込み';
+    row.innerHTML = `<span class="num">${i + 1}</span><input class="alabel" id="alabel${i}" aria-label="アングル${i+1}の名前">
+      <div class="meta"></div>
+      ${a.ready ? `<div class="offs"><span class="k">${ref && ref.i === i ? '基準' : 'ずれ補正'}</span>
+        <button data-o="-0.1">−0.1</button><button data-o="${-FRAME}">−1f</button>
+        <output>${(a.off >= 0 ? '+' : '') + a.off.toFixed(2)}s</output>
+        <button data-o="${FRAME}">+1f</button><button data-o="0.1">+0.1</button></div>` : ''}
+      <div class="acts">
+        <button data-act="file">${a.kind ? '差し替え' : '動画ファイル'}</button>
+        ${IS_FILE ? '' : '<button data-act="yt">YouTube</button>'}
+        ${a.kind ? '<button data-act="remove">外す</button>' : ''}
+      </div>`;
+    row.querySelector('.meta').textContent = meta;
+    row.querySelector('.meta').title = meta;
+    const inp = row.querySelector('.alabel'); inp.value = a.label;
+    inp.addEventListener('input', () => { a.label = inp.value || LABELS[i]; render(); save(); });
+    row.querySelectorAll('[data-o]').forEach(b => b.addEventListener('click', () => {
+      a.off += +b.dataset.o; row.querySelector('output').textContent = (a.off >= 0 ? '+' : '') + a.off.toFixed(2) + 's';
+      renderLanes(); seekAll(S.t); save();
+    }));
+    row.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => {
+      const act = b.dataset.act;
+      if (act === 'file') tiles[i].querySelector('input[type=file]').click();
+      else if (act === 'remove') unloadAngle(i);
+      else if (act === 'yt') {
+        if (a.kind) unloadAngle(i);
+        setMain(i);
+        const f = tiles[i].querySelector('.ytform input');
+        if (f) { f.focus(); tiles[i].scrollIntoView({block: 'nearest'}); }
+      }
+    }));
+    box.appendChild(row);
+  });
+}
+let lastTc = '';
+function paint() {
+  const [a0, a1] = range(), span = a1 - a0;
+  const tc = `${fmt(S.t)} <small>/ ${fmt(a1, false)}</small>`;
+  if (tc !== lastTc) { $('#tc').innerHTML = tc; lastTc = tc; }
+  const p = span > 0 ? (S.t - a0) / span * 100 : 0;
+  $('#fill').style.width = p + '%'; $('#head').style.left = p + '%';
+  S.angles.forEach((a, i) => {
+    if (!a.ready) return;
+    const s = srcs[i];
+    tiles[i].querySelector('.ctime').textContent = fmt(s.time);
+    tiles[i].classList.toggle('is-oor', !S.sync && !inRange(a, S.t) && Math.abs(S.t + a.off - a.dur) > 0.06);
+    if (S.sync) tiles[i].querySelector('.scrub').value = s.time;
+  });
+}
+function updatePlayIcon() {
+  $('#playIcon').innerHTML = S.playing ? '<path d="M3 2h3.5v12H3zM9.5 2H13v12H9.5z"/>' : '<path d="M3 1.5v13l11-6.5z"/>';
+  $('#play').setAttribute('aria-label', S.playing ? '一時停止' : '再生');
+}
+
+/* ---------- timeline scrubbing ---------- */
+const track = $('#track');
+let dragging = false, resume = false;
+function tFromX(x) {
+  const r = track.querySelector('.inner').getBoundingClientRect(), [a0, a1] = range();
+  return a0 + clamp((x - r.left) / r.width, 0, 1) * (a1 - a0);
+}
+track.addEventListener('pointerdown', e => {
+  if (!loaded().length) return;
+  dragging = true; resume = S.playing; if (S.playing) { S.playing = false; srcs.forEach(s => s.pause()); }
+  track.setPointerCapture(e.pointerId); seekAll(tFromX(e.clientX));
+});
+track.addEventListener('pointermove', e => { if (dragging) seekAll(tFromX(e.clientX)); });
+const endDrag = () => { if (!dragging) return; dragging = false; if (resume) play(); else updatePlayIcon(); };
+track.addEventListener('pointerup', endDrag); track.addEventListener('pointercancel', endDrag);
+
+/* ---------- controls ---------- */
+$('#play').addEventListener('click', () => S.sync ? null : togglePlay());
+document.querySelectorAll('[data-seek]').forEach(b => b.addEventListener('click', () => S.sync ? nudgeTile(S.main, +b.dataset.seek) : seekRel(+b.dataset.seek)));
+document.querySelectorAll('[data-frame]').forEach(b => b.addEventListener('click', () => S.sync ? nudgeTile(S.main, b.dataset.frame * FRAME) : frameStep(+b.dataset.frame)));
+$('#rate').addEventListener('change', e => setRate(+e.target.value));
+$('#mute').addEventListener('click', () => { S.muted = !S.muted; applyAudio(); render(); });
+$('#layout').addEventListener('click', () => { S.layout = S.layout === 'focus' ? 'grid' : 'focus'; render(); });
+$('#syncBtn').addEventListener('click', () => S.sync ? cancelSync() : enterSync());
+$('#syncApply').addEventListener('click', applySync);
+$('#syncCancel').addEventListener('click', cancelSync);
+function toggleFs() {
+  try {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else { const p = document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); if (p) p.catch(() => toast('この環境では全画面にできません')); }
+  } catch (e) { toast('この環境では全画面にできません'); }
+}
+$('#fs').addEventListener('click', toggleFs);
+$('#bulk').addEventListener('click', () => $('#bulkInput').click());
+$('#bulkInput').addEventListener('change', e => { fillSlots([...e.target.files]); e.target.value = ''; });
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => {
+  e.preventDefault();
+  const files = videoFiles(e.dataTransfer.files);
+  if (files.length) { fillSlots(files); return; }
+  const id = parseYouTube(e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain'));
+  if (id) { const k = emptySlots(S.main)[0]; if (k === undefined) toast('空いている枠がありません'); else loadYouTube(k, id); }
+});
+document.addEventListener('paste', e => {
+  if (e.target.matches && e.target.matches('input,textarea')) return;
+  const id = parseYouTube((e.clipboardData || window.clipboardData).getData('text'));
+  if (!id) return;
+  e.preventDefault();
+  const k = emptySlots(S.main)[0];
+  if (k === undefined) toast('空いている枠がありません。「外す」で枠を空けてください'); else loadYouTube(k, id);
+});
+
+document.addEventListener('keydown', e => {
+  const t = e.target;
+  if (t.matches && t.matches('input:not([type=range]),textarea,select')) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const dm = /^Digit([1-6])$/.exec(e.code);
+  if (dm) {
+    const n = +dm[1] - 1;
+    if (e.shiftKey) { addMarker(TAGS[n]); e.preventDefault(); }
+    else if (n < 4) setMain(n);
+    return;
+  }
+  switch (e.code) {
+    case 'Space': e.preventDefault();
+      if (S.sync) { const s = srcs[S.main]; if (S.angles[S.main].ready) s.paused ? s.play() : s.pause(); }
+      else togglePlay(); return;
+    case 'ArrowLeft': case 'ArrowRight': {
+      e.preventDefault(); const d = (e.shiftKey ? 1 : 5) * (e.code === 'ArrowLeft' ? -1 : 1);
+      S.sync ? nudgeTile(S.main, d) : seekRel(d); return; }
+    case 'KeyG': S.layout = S.layout === 'focus' ? 'grid' : 'focus'; render(); return;
+    case 'KeyM': S.muted = !S.muted; applyAudio(); render(); return;
+    case 'KeyF': toggleFs(); return;
+    case 'KeyS': S.sync ? cancelSync() : enterSync(); return;
+    case 'KeyB': addMarker(TAGS[5]); return;
+  }
+  if (e.key === ',' || e.key === '<') { S.sync ? nudgeTile(S.main, -FRAME) : frameStep(-1); }
+  else if (e.key === '.' || e.key === '>') { S.sync ? nudgeTile(S.main, FRAME) : frameStep(1); }
+  else if (e.key === '[') stepRate(-1);
+  else if (e.key === ']') stepRate(1);
+});
+
+render(); renderPanel(); renderMarkers(); updatePlayIcon();
+requestAnimationFrame(tick);
+})();
+</script>
+</body></html>
