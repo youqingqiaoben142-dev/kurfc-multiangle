@@ -330,7 +330,7 @@ textarea.copybox{width:100%;height:80px;background:var(--bg);border:1px solid va
         <dt><kbd>Esc</kbd></dt><dd>連続再生・同期合わせ・入力欄を閉じる</dd>
       </dl>
       <h3>うまく流れないとき</h3>
-      <p class="mempty">通信が追いつかないと止まりやすくなります。「軽量」をオンにすると、メインだけを再生し、ほかのアングルは止めた絵で待機します（切り替えると、その場面から再生）。スマホでは最初からオンです。<br>動画が映らない：H.265(HEVC)はH.264のMP4に変換。YouTubeが映らない：「非公開」や埋め込み禁止の動画は使えません。パソコンのファイルを直接開いたときはYouTubeは使えないので、「マルチアングル起動.bat」かWeb版から開いてください。</p>
+      <p class="mempty">字幕はこの画面では出ないようにしています。それでも出るときは、YouTubeの設定の「字幕を常に表示する」をオフにしてください。<br>通信が追いつかないと止まりやすくなります。「軽量」をオンにすると、メインだけを再生し、ほかのアングルは止めた絵で待機します（切り替えると、その場面から再生）。スマホでは最初からオンです。<br>動画が映らない：H.265(HEVC)はH.264のMP4に変換。YouTubeが映らない：「非公開」や埋め込み禁止の動画は使えません。パソコンのファイルを直接開いたときはYouTubeは使えないので、「マルチアングル起動.bat」かWeb版から開いてください。</p>
     </div>
   </aside>
 </div>
@@ -749,7 +749,11 @@ function loadYouTube(a, id) {
         onApiChange: () => hideCaptions(player),
         onStateChange: e => {
           src.onState(e.data);
-          if (e.data === 1) { if (!src.capOff) { hideCaptions(player); src.capOff = true; } if (!src.want) player.pauseVideo(); }
+          if (e.data === 1) {
+            // YouTube may switch captions on (account setting / auto captions) whenever playback starts
+            hideCaptions(player); clearTimeout(src.capT); src.capT = setTimeout(() => hideCaptions(player), 1500);
+            if (!src.want) player.pauseVideo();
+          }
         },
         onError: e => showError(a, YT_ERRORS[e.data] || `YouTubeの動画を再生できません（エラー${e.data}）。`)
       }
