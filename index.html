@@ -73,7 +73,11 @@ button{cursor:pointer}
 .tbar .sp{flex:1;pointer-events:none}
 .tbar .zreset{background:#000c;border:1px solid #fff4;border-radius:3px;font-size:11px;padding:1px 6px}
 .ctime{position:absolute;right:6px;bottom:6px;z-index:2;font-family:var(--mono);font-size:11px;background:#000a;padding:1px 5px;border-radius:2px;pointer-events:none;font-variant-numeric:tabular-nums}
-.tile.ad .ctime{background:var(--enji);color:#fff}
+.tile.ad .ctime{background:var(--enji);color:#fff;font-size:12px}
+.adnote{position:absolute;left:50%;top:10px;transform:translateX(-50%);z-index:999;background:#000d;border:1px solid var(--enji-hi);border-radius:8px;padding:8px 14px;text-align:center;pointer-events:none;max-width:calc(100% - 20px)}
+.adnote b{display:block;font-size:22px;font-family:var(--mono);color:#fff;font-variant-numeric:tabular-nums}
+.adnote span{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+.app.theater .adnote{top:calc(60px + env(safe-area-inset-top,0px))}
 .tile.held .ctime::after{content:" ・停止中";color:var(--muted)}
 .tile:not(.loaded) .ctime,.tile:not(.loaded) .tbar .chip2{display:none}
 .rz{position:absolute;right:0;bottom:0;width:22px;height:22px;z-index:4;cursor:nwse-resize;display:none;touch-action:none;
@@ -321,6 +325,7 @@ body.theater-on .mbar{display:none!important}
       <button class="btn" id="reelStop">終了</button>
     </div>
     <main class="stage fresh" id="stage">
+      <div class="adnote" id="adnote" hidden><b id="adLeft"></b><span id="adSub"></span></div>
       <div class="start" id="start">
         <ol class="steps">
           <li><b>動画を入れる</b>：ファイルをここにドロップ、またはYouTubeのURLを貼り付け（何本でも、最大6本）</li>
@@ -435,6 +440,8 @@ body.theater-on .mbar{display:none!important}
         <dt><kbd>V</kbd></dt><dd>大きく見る（映像だけを画面いっぱいに）</dd>
         <dt><kbd>Esc</kbd></dt><dd>連続再生・同期合わせ・入力欄を閉じる</dd>
       </dl>
+      <h3>YouTubeの広告</h3>
+      <p class="mempty">広告はYouTubeが流すもので、このページからは止められません。流れている間はほかのアングルも止めて待ち、映像の上に「広告 あと◯秒」と出します（スキップが出たら押せます。広告が2本続くこともあります）。<br>広告を出さないには：①YouTube Premium に入っているアカウントで、同じブラウザでYouTubeにログインしておく ②部のチャンネルの動画なら、YouTube Studio から元の動画をダウンロードして「動画ファイル」として使う（広告なし・コマ送りも正確）。</p>
       <h3>うまく流れないとき</h3>
       <p class="mempty">字幕はこの画面では出ないようにしています。それでも出るときは、YouTubeの設定の「字幕を常に表示する」をオフにしてください。<br>通信が追いつかないと止まりやすくなります。「軽量」をオンにすると、メインだけを再生し、ほかのアングルは止めた絵で待機します（切り替えると、その場面から再生）。スマホでは最初からオンです。<br>動画が映らない：H.265(HEVC)はH.264のMP4に変換。YouTubeが映らない：「非公開」や埋め込み禁止の動画は使えません。パソコンのファイルを直接開いたときはYouTubeは使えないので、「マルチアングル起動.bat」かWeb版から開いてください。</p>
     </div>
@@ -611,6 +618,21 @@ class YTSrc {
     if (s === 1 && this.seekStart) { this.bufMs = this.bufMs * 0.6 + clamp(now() - this.seekStart, 100, 4000) * 0.4; this.seekStart = 0; }
   }
   destroy() { clearTimeout(this.timer); try { this.p.destroy(); } catch (e) {} }
+}
+// YouTube tells the page how long the current ad is (progressState) — use it for a countdown
+window.addEventListener('message', e => {
+  if (!/youtube/.test(String(e.origin))) return;
+  let d; try { d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data; } catch (err) { return; }
+  const ps = d && typeof d.info === 'object' && d.info && d.info.progressState;
+  if (!ps) return;
+  const a = S.angles.find(x => x.kind === 'yt' && x.src.p && x.src.p.getIframe && (() => { try { return x.src.p.getIframe().contentWindow === e.source; } catch (err) { return false; } })());
+  if (a) a.src.ps = {cur: +ps.current || 0, dur: +ps.duration || 0, at: now()};
+});
+function adLeft(a) {
+  const s = a.src, ps = s.ps;
+  if (!s.adLike || !ps || now() - ps.at > 4000 || !ps.dur) return null;
+  if (Math.abs(ps.dur - a.dur) < 1) return null; // that's the video itself, not an ad
+  return Math.max(0, ps.dur - ps.cur - (now() - ps.at) / 1000);
 }
 function hideCaptions(p) {
   try { p.unloadModule('captions'); } catch (e) {}
@@ -1633,10 +1655,19 @@ function paint() {
     const s = a.src;
     a.el.classList.toggle('ad', !!s.inAd);
     a.el.classList.toggle('held', S.playing && S.light && a !== m && inRange(a, S.t));
-    a.el.querySelector('.ctime').textContent = s.inAd ? '広告中（終わるまで待機）' : fmt(s.time);
+    const left = s.inAd ? adLeft(a) : null;
+    a.el.querySelector('.ctime').textContent = s.inAd ? (left != null ? `広告 あと${Math.ceil(left)}秒` : '広告中') : fmt(s.time);
     a.el.classList.toggle('is-oor', !S.sync && !inRange(a, S.t) && Math.abs(S.t + a.off - a.dur) > 0.06);
     if (S.sync) a.el.querySelector('.scrub').value = s.time;
   });
+  // a notice in the middle of the picture while the main angle shows an ad
+  const ma = mainA(), note = $('#adnote');
+  if (ma && ma.ready && ma.src.inAd && S.playing) {
+    const left = adLeft(ma);
+    note.hidden = false;
+    $('#adLeft').textContent = left != null ? `広告 あと ${Math.ceil(left)} 秒` : '広告中';
+    $('#adSub').textContent = left != null ? '終わると自動で再開します（スキップが出たら押せます）' : '終わると自動で再開します。広告が続く場合もあります';
+  } else note.hidden = true;
   if (now() - lastCur > 250) {
     lastCur = now();
     S.markers.forEach(mk => { const r = rowById[mk.id]; if (r) r.classList.toggle('cur', S.t >= mk.t - prefs.pre && S.t <= mk.t + prefs.post); });
