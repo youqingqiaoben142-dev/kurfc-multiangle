@@ -230,6 +230,38 @@ textarea.copybox{width:100%;height:80px;background:var(--bg);border:1px solid va
 .sheet input{background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:10px;font-size:15px}
 
 /* phone bottom bar */
+/* big view: the picture fills the screen, a few controls float on it and hide while playing */
+.tctl,.tclose{display:none}
+.app.theater .stagewrap{position:fixed;inset:0;z-index:25;background:#000;gap:0;
+  padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
+.app.theater .stage{flex:1;height:auto!important;min-height:0}
+.app.theater .tile{border:0;border-radius:0;box-shadow:none}
+.app.theater #camchips,.app.theater .banner,.app.theater .rz,.app.theater .grip{display:none!important}
+body.theater-on{overflow:hidden}
+body.theater-on .mbar{display:none!important}
+.app.theater .tctl{display:flex;position:absolute;left:0;right:0;bottom:0;z-index:30;flex-direction:column;gap:6px;
+  padding:28px max(14px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(14px,env(safe-area-inset-left,0px));
+  background:linear-gradient(transparent,#000d 45%);transition:opacity .25s}
+.app.theater .tclose{display:block;position:absolute;z-index:30;top:calc(8px + env(safe-area-inset-top,0px));right:calc(10px + env(safe-area-inset-right,0px));transition:opacity .25s}
+.app.theater.idle .tctl,.app.theater.idle .tclose{opacity:0;pointer-events:none}
+.app.theater.idle .tbar{opacity:.35}
+.tctl .prog{position:relative;height:24px;touch-action:none;cursor:pointer}
+.tctl .prog i{position:absolute;left:0;right:0;top:10px;height:4px;border-radius:2px;background:#fff4}
+.tctl .prog b{position:absolute;left:0;top:10px;height:4px;border-radius:2px;background:var(--tally)}
+.tctl .prog u{position:absolute;top:5px;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:#fff}
+.tctl .prog s{position:absolute;top:6px;width:3px;height:12px;margin-left:-1px;border-radius:1px;text-decoration:none}
+.tctl .row{display:flex;gap:8px;align-items:center}
+.tctl button,.tclose{min-height:44px;min-width:44px;background:#000a;border:1px solid #fff4;border-radius:22px;color:#fff;padding:0 14px;font-size:14px;white-space:nowrap}
+.tctl .tplay{width:52px;padding:0;display:grid;place-items:center}
+.tctl .tplay svg{width:18px;height:18px;fill:#fff}
+.tctl .cams{display:flex;gap:6px;overflow-x:auto;flex:1;min-width:0;scrollbar-width:none}
+.tctl .cams button{display:flex;align-items:center;gap:6px;padding:0 12px 0 6px}
+.tctl .cams button b{font-family:var(--cond);min-width:26px;height:26px;line-height:26px;border-radius:13px;background:#fff2;text-align:center}
+.tctl .cams button.on{background:var(--enji);border-color:var(--enji-hi)}
+.tctl .cams button.on b{background:var(--tally)}
+.tctl .tt{font-family:var(--mono);color:#fff;font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tctl .ttag{background:var(--enji);border-color:var(--enji-hi)}
+@media (max-width:560px){ .tctl .cams button span{display:none} .tctl .cams button{padding:0 6px} .tctl .tt{display:none} }
 .mbar{display:none}
 @media (max-width:900px){
   .mbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:20;gap:6px;align-items:center;background:var(--panel);border-top:1px solid var(--line);
@@ -252,6 +284,8 @@ textarea.copybox{width:100%;height:80px;background:var(--bg);border:1px solid va
 }
 @media (pointer:coarse){ .arow .offs button,.arow .acts button{padding:6px 8px;font-size:12px} .mrow .mt{padding:6px} }
 @media (max-width:900px){
+  .stagewrap{order:1} .transport{order:2} .bar{order:3} .panel{order:4}
+  .bar{padding-top:6px;border-top:1px solid var(--line)}
   html,body{height:auto}
   .app{height:auto;grid-template-columns:minmax(0,1fr);grid-template-rows:auto}
   .stagewrap,.transport,.panel{grid-column:1;grid-row:auto}
@@ -299,6 +333,17 @@ textarea.copybox{width:100%;height:80px;background:var(--bg);border:1px solid va
       </div>
     </main>
     <div class="camchips" id="camchips" hidden></div>
+    <button class="tclose" id="tClose">× 戻る</button>
+    <div class="tctl" id="tctl">
+      <div class="prog" id="tProg"><i></i><span id="tMarks"></span><b id="tFill"></b><u id="tHead"></u></div>
+      <div class="row">
+        <button class="tplay" id="tPlay" aria-label="再生"><svg viewBox="0 0 16 16"><path d="M3 1.5v13l11-6.5z"/></svg></button>
+        <button id="tBack">↺5秒</button>
+        <span class="tt" id="tTime">0:00</span>
+        <div class="cams" id="tCams"></div>
+        <button class="ttag" id="tTag">＋タグ</button>
+      </div>
+    </div>
   </div>
 
   <section class="transport">
@@ -323,6 +368,7 @@ textarea.copybox{width:100%;height:80px;background:var(--bg);border:1px solid va
       </div>
       <button class="btn" id="light" title="メインだけ再生して通信を軽くする">軽量</button>
       <button class="btn" id="mute" title="消音（M）">音</button>
+      <button class="btn" id="bigBtn" title="映像だけを画面いっぱいに（V）">大きく見る</button>
       <button class="btn" id="fs">全画面</button>
     </div>
   </section>
@@ -362,7 +408,7 @@ textarea.copybox{width:100%;height:80px;background:var(--bg);border:1px solid va
       <ol class="howto">
         <li>最初は「1画面」：1本を大きく映し、映像の下のボタンで見たいアングルに切り替えます。左右にスワイプ、下のバーの「◀ 画角／画角 ▶」でも切り替わります</li>
         <li>下のバーで再生・5秒戻し・タグ付け</li>
-        <li>横向きにすると映像だけを大きく表示します</li>
+        <li>横向きにすると、映像が画面いっぱいになります（縦のままでも「大きく見る」で同じ表示）。操作ボタンは映像の上に重なり、再生中は3秒で消えます。映像をタップすると出てきます。左右スワイプか番号ボタンでアングル切り替え、「× 戻る」で元の画面へ</li>
         <li>スマホは通信を軽くするため、最初はメインだけ再生します（「軽量：オン」）。全部同時に動かすには「軽量」を押してオフに</li>
       </ol>
       <h3>並べ方と大きさ</h3>
@@ -386,6 +432,7 @@ textarea.copybox{width:100%;height:80px;background:var(--bg);border:1px solid va
         <dt><kbd>G</kbd> <kbd>S</kbd></dt><dd>並べ方の切り替え／同期を合わせる</dd>
         <dt><kbd>0</kbd></dt><dd>メインの映像の拡大を元に戻す</dd>
         <dt><kbd>M</kbd> <kbd>F</kbd></dt><dd>消音／全画面（ダブルクリックでも全画面）</dd>
+        <dt><kbd>V</kbd></dt><dd>大きく見る（映像だけを画面いっぱいに）</dd>
         <dt><kbd>Esc</kbd></dt><dd>連続再生・同期合わせ・入力欄を閉じる</dd>
       </dl>
       <h3>うまく流れないとき</h3>
@@ -423,8 +470,7 @@ textarea.copybox{width:100%;height:80px;background:var(--bg);border:1px solid va
 <nav class="mbar" id="mbar" hidden>
   <button class="play" id="mPlay" aria-label="再生"><svg viewBox="0 0 16 16"><path d="M3 1.5v13l11-6.5z"/></svg></button>
   <button class="btn" id="mBack">↺ 5秒</button>
-  <button class="btn" id="mPrev" aria-label="前のアングル">◀ 画角</button>
-  <button class="btn" id="mNext" aria-label="次のアングル">画角 ▶</button>
+  <button class="btn" id="mBig">大きく見る</button>
   <button class="btn pri" id="mTag">＋タグ</button>
 </nav>
 <div class="toast" id="toast" role="status"></div>
@@ -490,7 +536,7 @@ const videoFiles = list => [...list].filter(f => f.type.startsWith('video/') || 
 
 /* ---------- state ---------- */
 const S = {
-  title: '', jump: null,
+  title: '', jump: null, theater: false, theaterAuto: false,
   angles: [], main: 0, layout: prefs.layout || (PHONE ? 'single' : 'focus'), playing: false, t: 0, rate: 1, muted: false,
   sync: false, markers: [], syncBackup: null, reel: null, filter: 'all', shared: false,
   light: prefs.light == null ? PHONE : prefs.light, holdAt: 0, stalls: [], stallHinted: false
@@ -691,6 +737,8 @@ function buildTile(a) {
     const i = idx(a);
     if (!a.ready) { if (S.main !== i) setMain(i); return; }
     if (S.sync) { if (i === S.main) { a.src.paused ? a.src.play() : a.src.pause(); } return; }
+    if (S.theater && $('#app').classList.contains('idle')) { poke(); return; }
+    if (S.theater) poke();
     if (i === S.main) { togglePlay(); flashPlay(a); } else setMain(i);
   });
   el.addEventListener('dblclick', e => { if (idx(a) === S.main && a.ready && !S.sync && !e.target.closest('button,input,.nudge')) toggleFs(); });
@@ -800,6 +848,7 @@ function onLoaded(a) {
   applyAudio(); render(); renderPanel(); renderMarkers();
   seekAll(S.t); save();
   toast(restored ? `${a.label}を読み込み、前回の同期とタグを復元しました` : `${a.label}を読み込みました`);
+  if (PHONE && landMQ.matches && !S.theater && !S.sync) enterTheater(true);
 }
 function showError(a, html) {
   a.err = true; a.ready = false;
@@ -979,8 +1028,9 @@ function layoutTiles() {
     return;
   }
   S.angles.forEach(a => a.el.classList.remove('synchide', 'syncref'));
-  const mode = (!wide() && S.layout === 'custom') ? 'focus' : S.layout;
-  if (landPhone()) stage.style.height = landH(mode === 'single' && n > 1) + 'px';
+  const mode = S.theater ? 'single' : (!wide() && S.layout === 'custom') ? 'focus' : S.layout;
+  if (S.theater) stage.style.height = '';
+  else if (landPhone()) stage.style.height = landH(mode === 'single' && n > 1) + 'px';
   else if (!wide()) { const h = phoneStageHeight(); stage.style.height = h ? h + 'px' : ''; } else stage.style.height = '';
   const rects = mode === 'custom' ? S.angles.map((a, i) => a.rect || presetRects('focus')[i]) : presetRects(mode);
   S.angles.forEach((a, i) => {
@@ -993,7 +1043,8 @@ function layoutTiles() {
 }
 function renderChips(mode) {
   const box = $('#camchips');
-  const show = !S.sync && mode === 'single' && S.angles.length > 1;
+  const show = !S.sync && !S.theater && mode === 'single' && S.angles.length > 1;
+  if (S.theater) renderTheaterCams();
   box.hidden = !show; if (!show) return;
   box.innerHTML = '';
   S.angles.forEach((a, i) => {
@@ -1162,6 +1213,7 @@ function noteStall() {
 /* ---------- sync mode ---------- */
 /* step 0: pick a clear moment on the reference angle; step 1..n: match each other angle to it, side by side */
 function enterSync(only) {
+  if (S.theater) exitTheater();
   if (loaded().length < 2) { toast('同期は、動画が2本以上あるときに使います'); return; }
   if (S.playing) pause();
   stopReel();
@@ -1299,11 +1351,12 @@ function renderFilters() {
   box.hidden = !S.markers.length;
 }
 function paintMarks() {
-  const [a0, a1] = range(), span = a1 - a0, box = $('#marks'); box.innerHTML = '';
+  const [a0, a1] = range(), span = a1 - a0, box = $('#marks'), box2 = $('#tMarks'); box.innerHTML = ''; box2.innerHTML = '';
   if (span <= 0) return;
   S.markers.forEach(m => {
     const i = document.createElement('i'); i.style.left = ((m.t - a0) / span * 100) + '%'; i.style.background = tagOf(m.tag).c;
     box.appendChild(i);
+    const j = document.createElement('s'); j.style.left = i.style.left; j.style.background = tagOf(m.tag).c; box2.appendChild(j);
   });
 }
 $('#copyMarks').addEventListener('click', () => {
@@ -1481,7 +1534,7 @@ function render() {
   $('#angCnt').textContent = n;
   const hasV = loaded().length > 0;
   $('#mbar').hidden = !hasV; document.body.classList.toggle('has-mbar', hasV);
-  $('#mPrev').disabled = $('#mNext').disabled = loaded().length < 2;
+  if (S.theater && !hasV) exitTheater();
   renderLayoutSeg();
   S.angles.forEach((a, i) => {
     const el = a.el;
@@ -1565,6 +1618,11 @@ function renderPanel() {
 let lastTc = '', lastCur = 0;
 function paint() {
   const [a0, a1] = range(), span = a1 - a0;
+  if (S.theater) {
+    const pp = span > 0 ? (S.t - a0) / span * 100 : 0;
+    $('#tFill').style.width = pp + '%'; $('#tHead').style.left = pp + '%';
+    const tt = `${fmt(S.t, false)} / ${fmt(a1, false)}`; if ($('#tTime').textContent !== tt) $('#tTime').textContent = tt;
+  }
   const tc = `${fmt(S.t)} <small>/ ${fmt(a1, false)}</small>`;
   if (tc !== lastTc) { $('#tc').innerHTML = tc; lastTc = tc; }
   const p = span > 0 ? (S.t - a0) / span * 100 : 0;
@@ -1587,6 +1645,8 @@ function paint() {
 function updatePlayIcon() {
   $('#playIcon').innerHTML = S.playing ? PAUSE_SVG : PLAY_SVG;
   $('#mPlay svg').innerHTML = S.playing ? PAUSE_SVG : PLAY_SVG;
+  $('#tPlay svg').innerHTML = S.playing ? PAUSE_SVG : PLAY_SVG;
+  if (S.theater) poke();
   $('#play').setAttribute('aria-label', S.playing ? '一時停止' : '再生');
 }
 
@@ -1664,6 +1724,7 @@ document.addEventListener('keydown', e => {
   const t = e.target;
   if (e.key === 'Escape') {
     if (!$('#ytPop').hidden) closeYtPop();
+    else if (S.theater && $('#tagSheet').hidden) exitTheater();
     else if (!$('#sharePop').hidden) $('#sharePop').hidden = true;
     else if (!$('#tagSheet').hidden) closeTagSheet();
     else if (t.matches && t.matches('input,textarea')) t.blur();
@@ -1699,6 +1760,7 @@ document.addEventListener('keydown', e => {
     case 'KeyF': toggleFs(); return;
     case 'KeyS': S.sync ? cancelSync() : enterSync(); return;
     case 'KeyB': addMarker(TAGS[5]); return;
+    case 'KeyV': S.theater ? exitTheater() : enterTheater(false); return;
   }
   if (e.key === ',' || e.key === '<') { S.sync ? nudgeTile(mainA(), -FRAME) : frameStep(-1); }
   else if (e.key === '.' || e.key === '>') { S.sync ? nudgeTile(mainA(), FRAME) : frameStep(1); }
@@ -1709,8 +1771,60 @@ document.addEventListener('keydown', e => {
 
 $('#mPlay').addEventListener('click', () => { if (S.sync) { const a = mainA(); if (a && a.ready) a.src.paused ? a.src.play() : a.src.pause(); } else togglePlay(); });
 $('#mBack').addEventListener('click', replay);
-$('#mPrev').addEventListener('click', () => switchAngle(-1));
-$('#mNext').addEventListener('click', () => switchAngle(1));
+$('#mBig').addEventListener('click', () => enterTheater(false));
+$('#bigBtn').addEventListener('click', () => S.theater ? exitTheater() : enterTheater(false));
+
+/* ---------- big view ---------- */
+let idleT = 0;
+function poke() {
+  $('#app').classList.remove('idle');
+  clearTimeout(idleT);
+  idleT = setTimeout(() => { if (S.theater && S.playing) $('#app').classList.add('idle'); }, 3000);
+}
+function enterTheater(auto) {
+  if (!loaded().length) { toast('先に動画を読み込んでください'); return; }
+  if (S.sync) cancelSync();
+  S.theater = true; S.theaterAuto = !!auto;
+  $('#app').classList.add('theater'); document.body.classList.add('theater-on');
+  render(); renderTheaterCams(); poke();
+}
+function exitTheater() {
+  S.theater = false; S.theaterAuto = false;
+  $('#app').classList.remove('theater', 'idle'); document.body.classList.remove('theater-on');
+  render();
+}
+function renderTheaterCams() {
+  const box = $('#tCams'); box.innerHTML = '';
+  if (S.angles.length < 2) return;
+  S.angles.forEach((a, i) => {
+    const b = document.createElement('button');
+    b.innerHTML = `<b>${i + 1}</b><span>${esc(a.label)}</span>`;
+    b.classList.toggle('on', i === S.main); b.disabled = !a.ready;
+    b.addEventListener('click', () => { setMain(i); poke(); });
+    box.appendChild(b);
+  });
+}
+$('#tClose').addEventListener('click', exitTheater);
+$('#tPlay').addEventListener('click', () => { togglePlay(); poke(); });
+$('#tBack').addEventListener('click', () => { replay(); poke(); });
+$('#tTag').addEventListener('click', () => { openTagSheet(); poke(); });
+['pointerdown', 'pointermove'].forEach(ev => $('#tctl').addEventListener(ev, poke));
+(() => {
+  const prog = $('#tProg'); let drag = false, wasPlaying = false;
+  const tAt = x => { const r = prog.getBoundingClientRect(), [a0, a1] = range(); return a0 + clamp((x - r.left) / r.width, 0, 1) * (a1 - a0); };
+  prog.addEventListener('pointerdown', e => { if (!loaded().length) return; drag = true; wasPlaying = S.playing; if (S.playing) { S.playing = false; S.angles.forEach(a => a.src.pause()); } prog.setPointerCapture(e.pointerId); seekAll(tAt(e.clientX)); });
+  prog.addEventListener('pointermove', e => { if (drag) seekAll(tAt(e.clientX)); });
+  const end = () => { if (!drag) return; drag = false; if (wasPlaying) play(); else updatePlayIcon(); };
+  prog.addEventListener('pointerup', end); prog.addEventListener('pointercancel', end);
+})();
+// phones: turning sideways opens the big view, turning back closes it
+const landMQ = window.matchMedia('(orientation: landscape)');
+function onTurn() {
+  if (!PHONE) return;
+  if (landMQ.matches) { if (!S.theater && loaded().length && !S.sync) enterTheater(true); }
+  else if (S.theater && S.theaterAuto) exitTheater();
+}
+if (landMQ.addEventListener) landMQ.addEventListener('change', () => setTimeout(onTurn, 250));
 let sheetT = 0;
 function openTagSheet() {
   if (!loaded().length) { toast('先に動画を読み込んでください'); return; }
