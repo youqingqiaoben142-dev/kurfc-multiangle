@@ -1775,7 +1775,12 @@ $('#syncBtn').addEventListener('click', () => S.sync ? cancelSync() : enterSync(
 // 全画面 = the picture fills the page (works everywhere) + the browser's own full screen where allowed (hides the address bar)
 function toggleFs() { S.theater ? exitTheater() : enterTheater(false, true); }
 $('#fs').addEventListener('click', toggleFs);
-document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && S.theater && S.fsByUs) { S.fsByUs = false; exitTheater(); } });
+document.addEventListener('fullscreenchange', () => {
+  if (document.fullscreenElement) { S.fsAt = now(); return; }
+  // leaving the browser's full screen (Esc / back) also leaves our full-screen view — unless the browser dropped it right away
+  if (S.theater && S.fsByUs && now() - (S.fsAt || 0) > 800) { S.fsByUs = false; exitTheater(); }
+  else S.fsByUs = false;
+});
 $('#bulk').addEventListener('click', () => $('#bulkInput').click());
 $('#startFile').addEventListener('click', () => $('#bulkInput').click());
 $('#addFile').addEventListener('click', () => $('#bulkInput').click());
