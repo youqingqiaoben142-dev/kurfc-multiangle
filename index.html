@@ -152,6 +152,8 @@ button{cursor:pointer}
 .lane.main i{background:var(--tally);opacity:.9}
 .marks{position:absolute;left:8px;right:8px;top:2px;height:22px;pointer-events:none}
 .marks i{position:absolute;top:0;width:3px;height:22px;margin-left:-1px;border-radius:1px}
+.marks i.us{height:11px}
+.marks i.op{top:11px;height:11px}
 .head{position:absolute;top:2px;bottom:2px;width:2px;margin-left:-1px;background:#fff;pointer-events:none;border-radius:1px}
 .track .inner{position:absolute;left:8px;right:8px;top:0;bottom:0}
 .tip{position:absolute;bottom:calc(100% + 6px);transform:translateX(-50%);background:var(--raise2);border:1px solid var(--line);border-radius:4px;padding:2px 6px;font-family:var(--mono);font-size:11px;pointer-events:none;white-space:nowrap;z-index:5}
@@ -225,7 +227,7 @@ textarea.copybox{width:100%;height:80px;background:var(--bg);border:1px solid va
 
 /* popover */
 .scrim{position:fixed;inset:0;background:#000a;z-index:30;display:grid;place-items:center;padding:16px}
-.pop{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:18px;width:min(520px,100%);display:flex;flex-direction:column;gap:10px}
+.pop{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:18px;width:min(520px,100%);display:flex;flex-direction:column;gap:10px;max-height:calc(100dvh - 32px);overflow:auto}
 .pop h2{margin:0;font-size:16px}
 .pop p{margin:0;color:var(--muted);line-height:1.6}
 .pop textarea{width:100%;min-height:120px;background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:8px;font-family:var(--mono);font-size:12px}
@@ -237,7 +239,18 @@ textarea.copybox{width:100%;height:80px;background:var(--bg);border:1px solid va
 .pop label.chk{flex-direction:row;align-items:center;gap:8px;color:var(--fg);font-size:13px}
 .pop .shtext{min-height:110px;font-family:var(--body);font-size:12px}
 .tags.big{grid-template-columns:repeat(2,1fr);gap:8px}
-.tags.big button{padding:16px 12px;font-size:16px}
+.tags .th{font-size:12px;font-weight:700;text-align:center;padding:2px 0;border-radius:4px;color:#fff}
+.tags .th.us{background:var(--enji)}
+.tags .th.op{background:#3c5a7a}
+.tags .wide{grid-column:1 / -1}
+.side{display:inline-block;font-size:10px;line-height:15px;padding:0 5px;border-radius:8px;margin-left:4px;color:#fff;vertical-align:1px}
+.side.us{background:var(--enji)}
+.side.op{background:#3c5a7a}
+.filters .sep{width:100%;height:0}
+body.readonly #tags,body.readonly #mTag,body.readonly #tTag,body.readonly .mrow .x{display:none!important}
+body.readonly .mrow input{pointer-events:none}
+.tags.big button{padding:14px 12px;font-size:16px}
+@media (max-height:700px){ .tags.big button{padding:9px 10px;font-size:15px} }
 .sheetscrim{align-items:end}
 .sheet{border-bottom-left-radius:0;border-bottom-right-radius:0;padding-bottom:calc(18px + env(safe-area-inset-bottom,0px))}
 .sheet input{background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:10px;font-size:15px}
@@ -276,6 +289,8 @@ body.theater-on .mbar{display:none!important}
 .tctl .prog b{position:absolute;left:0;top:10px;height:4px;border-radius:2px;background:var(--tally)}
 .tctl .prog u{position:absolute;top:5px;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:#fff}
 .tctl .prog s{position:absolute;top:6px;width:3px;height:12px;margin-left:-1px;border-radius:1px;text-decoration:none}
+.tctl .prog s.us{top:2px;height:8px}
+.tctl .prog s.op{top:14px;height:8px}
 .tctl .row{display:flex;gap:8px;align-items:center}
 .tctl button,.tclose{min-height:44px;min-width:44px;background:#000a;border:1px solid #fff4;border-radius:22px;color:#fff;padding:0 14px;font-size:14px;white-space:nowrap}
 .tctl .tplay{width:52px;padding:0;display:grid;place-items:center}
@@ -345,6 +360,7 @@ body.theater-on .mbar{display:none!important}
       <p><strong>アプリの中のブラウザで開いています。</strong>動画がうまく再生されないことがあります。右上（または右下）のメニューから「ブラウザで開く」「Chromeで開く」「Safariで開く」を選んでください。</p>
       <button class="btn" id="inappClose">このまま使う</button>
     </div>
+    <div class="banner" id="robar" hidden><p><strong>閲覧用のリンクです。</strong>タグの追加・メモの書き換え・削除はできません（見る・場面に飛ぶ・連続再生はできます）。</p></div>
     <div class="banner" id="tapbar" hidden><p><strong>▶ 下の映像をタップすると再生が始まります。</strong>スマホでは最初の1回だけ必要です（映像のどこを押しても大丈夫です）。</p></div>
     <div class="banner" id="syncbar" hidden></div>
     <div class="banner" id="reelbar" hidden>
@@ -438,9 +454,9 @@ body.theater-on .mbar{display:none!important}
       <ol class="howto">
         <li>動画を入れる：ファイルを画面にドロップするか、YouTubeのURLをコピーして <kbd>Ctrl</kbd>+<kbd>V</kbd>（1〜6本。あとから足したり外したりできます）</li>
         <li>「同期を合わせる」：基準のアングルで合わせやすい瞬間（キックオフなど）を決め、ほかのアングルを1本ずつ左右に並べて同じ瞬間に合わせます。あとから1本だけ合わせ直すときは「アングル」タブの「合わせ直す」</li>
-        <li>再生しながら、場面ごとにタグを付ける（<kbd>Shift</kbd>+数字。スマホは下の「＋タグ」）</li>
+        <li>再生しながら、場面ごとにタグを付ける。タグは「自チーム」「相手」の2列に分かれています（ペナルティは反則をしたチーム）。スマホは下の「＋タグ」</li>
         <li>タグの一覧から場面に飛ぶか、「連続再生」でタグの場面だけを順に見る</li>
-        <li>「共有リンク」で部員に送る（YouTubeの動画とズレ・タグがそのまま開きます）。タグの「共有」を押すと、その場面から開くリンクになります</li>
+        <li>「共有リンク」で部員に送る（YouTubeの動画とズレ・タグがそのまま開きます）。ふつうは見るだけのリンクで、受け取った人はタグを変えられません。一緒にタグを付けてもらうときは「受け取った人もタグを付けられるようにする」をオンに。タグの「共有」を押すと、その場面から開くリンクになります</li>
       </ol>
       <h3>スマホ</h3>
       <ol class="howto">
@@ -465,7 +481,8 @@ body.theater-on .mbar{display:none!important}
         <dt>ホイール</dt><dd>映像の上で回すと1秒ずつ（<kbd>Shift</kbd>で1コマずつ）</dd>
         <dt><kbd>,</kbd><kbd>.</kbd></dt><dd>1コマ戻す／進める</dd>
         <dt><kbd>[</kbd><kbd>]</kbd></dt><dd>再生速度を下げる／上げる</dd>
-        <dt><kbd>Shift</kbd>+<kbd>1</kbd>〜<kbd>6</kbd></dt><dd>タグを付ける（<kbd>B</kbd>でメモ）</dd>
+        <dt><kbd>Shift</kbd>+<kbd>1</kbd>〜<kbd>5</kbd></dt><dd>自チームのタグ（トライ・スクラム・ラインアウト・ペナルティ・キック）</dd>
+        <dt><kbd>Shift</kbd>+<kbd>Q</kbd>〜<kbd>T</kbd></dt><dd>相手のタグ（同じ順番）。<kbd>B</kbd>でメモ</dd>
         <dt><kbd>N</kbd> <kbd>P</kbd></dt><dd>連続再生で次／前のタグへ</dd>
         <dt><kbd>G</kbd> <kbd>S</kbd></dt><dd>並べ方の切り替え／同期を合わせる</dd>
         <dt><kbd>0</kbd></dt><dd>メインの映像の拡大を元に戻す</dd>
@@ -493,6 +510,7 @@ body.theater-on .mbar{display:none!important}
     <label>試合名<input type="text" id="shTitle" placeholder="例：vs九州共立大学 10/17"></label>
     <label>あなたの名前（付けたタグに表示されます）<input type="text" id="shName" placeholder="例：橋本"></label>
     <label class="chk"><input type="checkbox" id="shHere"> 今の場面（<span id="shNow"></span>）から開くようにする</label>
+    <label class="chk" id="shEditRow"><input type="checkbox" id="shEdit"> 受け取った人もタグを付けられるようにする（オフなら見るだけ）</label>
     <p>下の文をLINEなどに貼ると、受け取った人はリンクを開くだけで同じ動画・ズレ・タグで見られます。受け取った人がタグを足して送り返すと、あなたのタグと合わさります。</p>
     <textarea class="shtext" id="shText" readonly aria-label="送る文"></textarea>
     <div class="row"><button class="btn" id="shClose">閉じる</button><button class="btn" id="shCopyUrl">リンクだけコピー</button><button class="btn pri" id="shCopyText">この文をコピー</button></div>
@@ -535,6 +553,10 @@ const TAGS = [
   {k:'kick', name:'キック', c:'#a07ad6'}, {k:'memo', name:'メモ', c:'#a2969a'}
 ];
 const tagOf = k => TAGS.find(x => x.k === k) || TAGS[5];
+// which team the play belongs to (a penalty is tagged to the team that gave it away)
+const SIDES = {us: {name: '自チーム', short: '自'}, op: {name: '相手', short: '相手'}};
+const sideBadge = m => SIDES[m.side] ? `<span class="side ${m.side}">${SIDES[m.side].short}</span>` : '';
+const sideText = m => SIDES[m.side] ? `（${SIDES[m.side].name}）` : '';
 const RATES = [0.25, 0.5, 0.75, 1, 1.5, 2];
 const FRAME = 1 / 30;
 const PAGES_URL = 'https://youqingqiaoben142-dev.github.io/kurfc-multiangle/';
@@ -586,7 +608,7 @@ const videoFiles = list => [...list].filter(f => f.type.startsWith('video/') || 
 
 /* ---------- state ---------- */
 const S = {
-  title: '', jump: null, theater: false, theaterAuto: false,
+  title: '', jump: null, readOnly: false, sideFilter: '', theater: false, theaterAuto: false,
   angles: [], main: 0, layout: prefs.layout || (PHONE ? 'single' : 'focus'), playing: false, t: 0, rate: 1, muted: PHONE, forceMute: false,
   sync: false, markers: [], syncBackup: null, reel: null, filter: 'all', shared: false,
   light: prefs.light == null ? PHONE : prefs.light, holdAt: 0, stalls: [], stallHinted: false
@@ -713,6 +735,7 @@ const YT_ERRORS = {
 
 /* ---------- persistence ---------- */
 function save() {
+  if (S.readOnly) return;
   const L = loaded(); if (!L.length) return;
   const offs = {}, labels = {};
   L.forEach(a => { offs[fileKey(a)] = a.off; labels[fileKey(a)] = a.label; });
@@ -725,6 +748,7 @@ function saveLast() {
   if (slots.length) store.set('mav:last', {slots, at: Date.now()});
 }
 function restore() {
+  if (S.readOnly) return false;
   const d = store.get('mav:' + setKey(), null);
   if (!d) return false;
   loaded().forEach(a => {
@@ -1359,14 +1383,16 @@ function switchAngle(d) {
 }
 
 /* ---------- tags ---------- */
-function addMarker(tag, t = S.t, note = '') {
+function addMarker(tag, t = S.t, note = '', side = 'us') {
+  if (S.readOnly) { toast('閲覧用のリンクなので、タグは付けられません'); return; }
   if (!loaded().length) { toast('先に動画を読み込んでください'); return; }
-  S.markers.push({id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t, tag: tag.k, note, cam: S.main, by: prefs.name || ''});
+  side = tag.k === 'memo' ? '' : side;
+  S.markers.push({id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t, tag: tag.k, note, cam: S.main, by: prefs.name || '', side});
   S.markers.sort((x, y) => x.t - y.t);
   if (prefs.tab !== 'tags') setTab('tags');
-  renderMarkers(); save(); toast(`${tag.name}  ${fmt(t)}`, 1200);
+  renderMarkers(); save(); toast(`${tag.name}${side ? '（' + SIDES[side].name + '）' : ''}  ${fmt(t)}`, 1200);
 }
-const visibleMarkers = () => S.filter === 'all' ? S.markers : S.markers.filter(m => m.tag === S.filter);
+const visibleMarkers = () => S.markers.filter(m => (S.filter === 'all' || m.tag === S.filter) && (!S.sideFilter || m.side === S.sideFilter));
 function jumpTo(m) {
   if (m.cam != null && S.angles[m.cam] && S.angles[m.cam].ready && m.cam !== S.main) setMain(m.cam);
   seekAll(m.t - prefs.pre);
@@ -1392,7 +1418,7 @@ function renderReel() {
   $('#reelbar').hidden = !S.reel;
   if (!S.reel) return;
   const m = S.reel.list[S.reel.idx], tag = tagOf(m.tag);
-  $('#reelText').innerHTML = `<strong>連続再生中</strong>　${S.reel.idx + 1} / ${S.reel.list.length}　${esc(tag.name)} ${fmt(m.t)}${m.note ? '　' + esc(m.note) : ''}`;
+  $('#reelText').innerHTML = `<strong>連続再生中</strong>　${S.reel.idx + 1} / ${S.reel.list.length}　${esc(tag.name)}${sideBadge(m)} ${fmt(m.t)}${m.note ? '　' + esc(m.note) : ''}`;
 }
 let rowById = {};
 function renderMarkers() {
@@ -1402,17 +1428,19 @@ function renderMarkers() {
   if (!vis.length) {
     list.innerHTML = S.markers.length
       ? '<p class="mempty">この種類のタグはまだありません。</p>'
-      : '<p class="mempty">再生中に上のボタン（または <kbd>Shift</kbd>+数字）を押すと、その瞬間にタグが付きます。一覧の時刻を押すと、その場面の少し前から再生します。</p>';
+      : S.readOnly ? '<p class="mempty">タグはありません。</p>'
+      : '<p class="mempty">再生中に上のボタンを押すと、その瞬間にタグが付きます。左の列が自チーム、右の列が相手のプレー（ペナルティは反則をしたチーム）。一覧の時刻を押すと、その場面の少し前から再生します。</p>';
   }
   vis.forEach(m => {
     const tag = tagOf(m.tag);
     const cam = m.cam != null && S.angles[m.cam] ? `<span class="cam">CAM${m.cam + 1}</span>` : '';
     const row = document.createElement('div'); row.className = 'mrow';
     row.style.gridTemplateColumns = 'auto auto minmax(0,1fr) auto auto';
-    row.innerHTML = `<button class="mt" title="この場面へ">${fmt(m.t)}</button><span class="chip" style="--c:${tag.c};border-color:${tag.c}">${tag.name}${cam}</span>
+    row.innerHTML = `<button class="mt" title="この場面へ">${fmt(m.t)}</button><span class="chip" style="--c:${tag.c};border-color:${tag.c}">${tag.name}${sideBadge(m)}${cam}</span>
       <div><input placeholder="メモ" aria-label="メモ" style="width:100%">${m.by ? `<span class="by">${esc(m.by)}</span>` : ''}</div><button class="sh" title="この場面から開く共有リンクをコピー">共有</button><button class="x" aria-label="削除" title="削除">×</button>`;
     row.querySelector('.sh').addEventListener('click', () => shareTag(m));
     const inp = row.querySelector('input'); inp.value = m.note || '';
+    if (S.readOnly) { inp.readOnly = true; if (!m.note) inp.placeholder = ''; }
     inp.addEventListener('input', () => { m.note = inp.value; save(); });
     row.querySelector('.mt').addEventListener('click', () => { stopReel(); jumpTo(m); });
     row.querySelector('.x').addEventListener('click', () => { S.markers = S.markers.filter(x => x !== m); renderMarkers(); save(); });
@@ -1422,6 +1450,17 @@ function renderMarkers() {
 }
 function renderFilters() {
   const box = $('#filters'); box.innerHTML = '';
+  const sc = {us: 0, op: 0}; S.markers.forEach(m => { if (sc[m.side] != null) sc[m.side]++; });
+  if (sc.us || sc.op) {
+    [['', 'どちらも'], ['us', '自チーム ' + sc.us], ['op', '相手 ' + sc.op]].forEach(([k, label]) => {
+      const b = document.createElement('button'); b.textContent = label;
+      if (k) b.style.setProperty('--c', k === 'us' ? 'var(--enji-hi)' : '#6b8fb8');
+      b.classList.toggle('on', (S.sideFilter || '') === k);
+      b.addEventListener('click', () => { S.sideFilter = k; renderMarkers(); });
+      box.appendChild(b);
+    });
+    const br = document.createElement('span'); br.className = 'sep'; box.appendChild(br);
+  }
   const counts = {}; S.markers.forEach(m => counts[m.tag] = (counts[m.tag] || 0) + 1);
   [{k: 'all', name: 'すべて', c: ''}, ...TAGS].forEach(t => {
     if (t.k !== 'all' && !counts[t.k]) return;
@@ -1439,13 +1478,14 @@ function paintMarks() {
   if (span <= 0) return;
   S.markers.forEach(m => {
     const i = document.createElement('i'); i.style.left = ((m.t - a0) / span * 100) + '%'; i.style.background = tagOf(m.tag).c;
+    if (m.side) i.className = m.side; // own plays on the upper half, opponent's on the lower half
     box.appendChild(i);
-    const j = document.createElement('s'); j.style.left = i.style.left; j.style.background = tagOf(m.tag).c; box2.appendChild(j);
+    const j = document.createElement('s'); j.style.left = i.style.left; j.style.background = tagOf(m.tag).c; if (m.side) j.className = m.side; box2.appendChild(j);
   });
 }
 $('#copyMarks').addEventListener('click', () => {
   if (!S.markers.length) { toast('タグがまだありません'); return; }
-  const text = S.markers.map(m => `${fmt(m.t)}\t${tagOf(m.tag).name}\t${m.cam != null && S.angles[m.cam] ? 'CAM' + (m.cam + 1) + ' ' + S.angles[m.cam].label : ''}\t${m.note || ''}`).join('\n');
+  const text = S.markers.map(m => `${fmt(m.t)}\t${tagOf(m.tag).name}${sideText(m)}\t${m.cam != null && S.angles[m.cam] ? 'CAM' + (m.cam + 1) + ' ' + S.angles[m.cam].label : ''}\t${m.note || ''}`).join('\n');
   copyText(text, 'タグ一覧をコピーしました');
 });
 function copyText(text, okMsg) {
@@ -1456,12 +1496,23 @@ function copyText(text, okMsg) {
   };
   try { navigator.clipboard.writeText(text).then(() => toast(okMsg, 3000), fallback); } catch (e) { fallback(); }
 }
-TAGS.forEach((tag, n) => {
-  const b = document.createElement('button'); b.style.setProperty('--c', tag.c);
-  b.innerHTML = `<span>${tag.name}</span><kbd>${n === 5 ? 'B' : '⇧' + (n + 1)}</kbd>`;
-  b.addEventListener('click', () => addMarker(tag));
-  $('#tags').appendChild(b);
-});
+const OP_KEYS = ['Q', 'W', 'E', 'R', 'T'];
+function buildTagButtons(box, big, onPick) {
+  box.innerHTML = '<div class="th us">自チーム</div><div class="th op">相手</div>';
+  TAGS.forEach((tag, n) => {
+    const sides = tag.k === 'memo' ? [''] : ['us', 'op'];
+    sides.forEach(side => {
+      const b = document.createElement('button'); b.style.setProperty('--c', tag.c);
+      if (!side) b.className = 'wide';
+      const key = big ? '' : `<kbd>${!side ? 'B' : side === 'us' ? '⇧' + (n + 1) : '⇧' + OP_KEYS[n]}</kbd>`;
+      b.innerHTML = `<span>${tag.name}</span>${key}`;
+      b.title = side ? `${tag.name}（${SIDES[side].name}）` : tag.name;
+      b.addEventListener('click', () => onPick(tag, side));
+      box.appendChild(b);
+    });
+  });
+}
+buildTagButtons($('#tags'), false, (tag, side) => addMarker(tag, S.t, '', side));
 $('#preSel').value = String(prefs.pre); $('#postSel').value = String(prefs.post);
 $('#preSel').addEventListener('change', e => { prefs.pre = +e.target.value; savePrefs(); });
 $('#postSel').addEventListener('change', e => { prefs.post = +e.target.value; savePrefs(); });
@@ -1486,15 +1537,19 @@ async function decodeShare(str) {
 async function buildShareUrl(jump) {
   const obj = {v: 3, n: S.title || '',
     s: S.angles.map(a => a.kind === 'yt' ? ['y', a.ytid, a.label, +a.off.toFixed(3)] : a.kind === 'file' ? ['f', a.name, a.label, +a.off.toFixed(3)] : 0),
-    m: S.markers.map(m => [+m.t.toFixed(2), m.tag, m.note || '', m.cam == null ? -1 : m.cam, m.id, m.by || ''])};
+    m: S.markers.map(m => [+m.t.toFixed(2), m.tag, m.note || '', m.cam == null ? -1 : m.cam, m.id, m.by || '', m.side || ''])};
+  if (S.readOnly || !prefs.shareEdit) obj.ro = 1; // view-only: whoever opens it can't add, edit or delete tags
   if (jump) obj.j = [+jump.t.toFixed(2), jump.cam == null ? -1 : jump.cam];
   const base = /github\.io$/.test(location.hostname) ? location.origin + location.pathname : PAGES_URL;
   // openExternalBrowser=1: when tapped in LINE, it opens in the phone's normal browser instead of LINE's own
   return base + '?openExternalBrowser=1#s=' + await encodeShare(obj);
 }
 function tagSummary() {
-  const c = {}; S.markers.forEach(m => c[m.tag] = (c[m.tag] || 0) + 1);
-  return TAGS.filter(t => c[t.k]).map(t => `${t.name}${c[t.k]}`).join('・');
+  return TAGS.map(t => {
+    const L = S.markers.filter(m => m.tag === t.k); if (!L.length) return '';
+    const us = L.filter(m => m.side === 'us').length, op = L.filter(m => m.side === 'op').length;
+    return t.k === 'memo' || (!us && !op) ? `${t.name}${L.length}` : `${t.name}（${[us ? '自' + us : '', op ? '相手' + op : ''].filter(Boolean).join('・')}）`;
+  }).filter(Boolean).join(' ');
 }
 let shareUrl = '';
 async function refreshShare() {
@@ -1508,6 +1563,7 @@ async function refreshShare() {
     shareUrl,
     `アングル${S.angles.filter(a => a.kind).length}本・タグ${S.markers.length}件${S.markers.length ? '（' + tagSummary() + '）' : ''}`,
     here ? `${fmt(S.t, false)} の場面から開きます` : '',
+    (S.readOnly || !prefs.shareEdit) ? '（見るだけのリンクです）' : '',
     files ? '※パソコンの動画ファイルは入っていないので、各自で同じファイルを選んでください' : ''
   ].filter(Boolean).join('\n');
   save();
@@ -1515,11 +1571,13 @@ async function refreshShare() {
 $('#shareBtn').addEventListener('click', () => {
   if (!S.angles.some(a => a.kind)) { toast('先に動画を読み込んでください'); return; }
   $('#shTitle').value = S.title || ''; $('#shName').value = prefs.name || ''; $('#shHere').checked = false;
+  $('#shEdit').checked = !!prefs.shareEdit; $('#shEditRow').hidden = S.readOnly;
   $('#shNow').textContent = fmt(S.t, false);
   $('#sharePop').hidden = false; refreshShare();
 });
 ['shTitle', 'shName'].forEach(id => $('#' + id).addEventListener('input', refreshShare));
 $('#shHere').addEventListener('change', refreshShare);
+$('#shEdit').addEventListener('change', e => { prefs.shareEdit = e.target.checked; savePrefs(); refreshShare(); });
 $('#shClose').addEventListener('click', () => $('#sharePop').hidden = true);
 $('#sharePop').addEventListener('click', e => { if (e.target.id === 'sharePop') $('#sharePop').hidden = true; });
 $('#shCopyUrl').addEventListener('click', () => shareUrl && copyText(shareUrl, 'リンクをコピーしました'));
@@ -1528,7 +1586,7 @@ async function shareTag(m) {
   try {
     const url = await buildShareUrl({t: m.t - prefs.pre, cam: m.cam});
     const tag = tagOf(m.tag);
-    copyText(`【${S.title ? S.title + ' ' : ''}${tag.name} ${fmt(m.t, false)}】${m.note ? m.note : ''}\n${url}`, 'この場面のリンクをコピーしました');
+    copyText(`【${S.title ? S.title + ' ' : ''}${tag.name}${sideText(m)} ${fmt(m.t, false)}】${m.note ? m.note : ''}\n${url}`, 'この場面のリンクをコピーしました');
   } catch (e) { toast('リンクを作れませんでした'); }
 }
 function applyPlan(slots, markers) {
@@ -1550,8 +1608,9 @@ async function openShared() {
     const slots = (d.s || []).map(x => x ? {k: x[0], id: x[0] === 'y' ? x[1] : null, name: x[0] === 'f' ? x[1] : null, label: x[2], off: x[3]} : null);
     // older links kept empty slots; tag camera numbers refer to the list without them
     const map = []; let k = 0; slots.forEach((p, i) => { map[i] = p ? k++ : null; });
-    const markers = (d.m || []).map((x, n) => ({id: x[4] || 'sh' + n, t: x[0], tag: x[1], note: x[2], cam: x[3] < 0 || map[x[3]] == null ? null : map[x[3]], by: x[5] || ''}));
+    const markers = (d.m || []).map((x, n) => ({id: x[4] || 'sh' + n, t: x[0], tag: x[1], note: x[2], cam: x[3] < 0 || map[x[3]] == null ? null : map[x[3]], by: x[5] || '', side: x[6] || ''}));
     S.shared = true;
+    if (d.ro) { S.readOnly = true; document.body.classList.add('readonly'); $('#robar').hidden = false; setTab('tags'); }
     if (d.n) { S.title = d.n; $('#matchTitle').value = d.n; }
     if (d.j) S.jump = {t: d.j[0], cam: d.j[1] < 0 || map[d.j[1]] == null ? null : map[d.j[1]]};
     applyPlan(slots, markers);
@@ -1848,10 +1907,12 @@ document.addEventListener('keydown', e => {
   if (dm) {
     const n = +dm[1];
     if (n === 0) { if (mainA()) setZoom(mainA(), 1, 0, 0); return; }
-    if (e.shiftKey) { if (n <= 6) { addMarker(TAGS[n - 1]); e.preventDefault(); } }
+    if (e.shiftKey) { if (n <= 5) { addMarker(TAGS[n - 1], S.t, '', 'us'); e.preventDefault(); } else if (n === 6) { addMarker(TAGS[5]); e.preventDefault(); } }
     else if (n <= S.angles.length) setMain(n - 1);
     return;
   }
+  const opk = e.shiftKey ? OP_KEYS.indexOf(e.code.replace('Key', '')) : -1;
+  if (opk >= 0 && /^Key/.test(e.code)) { addMarker(TAGS[opk], S.t, '', 'op'); e.preventDefault(); return; }
   switch (e.code) {
     case 'Space': case 'KeyK': e.preventDefault();
       if (S.sync) { const a = mainA(); if (a && a.ready) a.src.paused ? a.src.play() : a.src.pause(); }
@@ -1966,6 +2027,7 @@ function onTurn() {
 if (landMQ.addEventListener) landMQ.addEventListener('change', () => setTimeout(onTurn, 250));
 let sheetT = 0;
 function openTagSheet() {
+  if (S.readOnly) { toast('閲覧用のリンクなので、タグは付けられません'); return; }
   if (!loaded().length) { toast('先に動画を読み込んでください'); return; }
   sheetT = S.t; $('#tagSheetTime').textContent = fmt(sheetT); $('#sheetNote').value = '';
   $('#tagSheet').hidden = false;
@@ -1974,11 +2036,7 @@ const closeTagSheet = () => { $('#tagSheet').hidden = true; };
 $('#mTag').addEventListener('click', openTagSheet);
 $('#sheetClose').addEventListener('click', closeTagSheet);
 $('#tagSheet').addEventListener('click', e => { if (e.target.id === 'tagSheet') closeTagSheet(); });
-TAGS.forEach(tag => {
-  const b = document.createElement('button'); b.style.setProperty('--c', tag.c); b.textContent = tag.name;
-  b.addEventListener('click', () => { addMarker(tag, sheetT, $('#sheetNote').value.trim()); closeTagSheet(); });
-  $('#tagsBig').appendChild(b);
-});
+buildTagButtons($('#tagsBig'), true, (tag, side) => { addMarker(tag, sheetT, $('#sheetNote').value.trim(), side); closeTagSheet(); });
 $('#matchTitle').addEventListener('input', e => { S.title = e.target.value.trim(); save(); });
 window.addEventListener('orientationchange', () => setTimeout(() => { render(); if (S.sync) renderSyncBar(); }, 300));
 
