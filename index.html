@@ -51,6 +51,8 @@ button{cursor:pointer}
 .ytwrap{position:absolute;inset:0;pointer-events:none;background:#000}
 .ytwrap iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 .tile:not(.is-yt) .ytwrap,.tile.is-yt video{display:none}
+.tile.ad .ytwrap{pointer-events:auto}
+.tile.ad .ctime{background:var(--enji);color:#fff}
 .ytform{display:flex;gap:4px;width:min(100%,340px)}
 .ytform input{flex:1;min-width:0;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:5px 8px;font-size:12px}
 .ytform button{padding:5px 9px}
@@ -285,7 +287,7 @@ function parseYouTube(text) {
 
 /* ---------- playback sources (local file / YouTube) ---------- */
 class FileSrc {
-  constructor(v) { this.v = v; this.fine = true; }
+  constructor(v) { this.v = v; this.fine = true; this.inAd = false; }
   get time() { return this.v.currentTime; } set time(x) { this.v.currentTime = x; }
   get paused() { return this.v.paused; } get seeking() { return this.v.seeking; }
   play() { const p = this.v.play(); if (p) p.catch(() => {}); }
@@ -298,10 +300,17 @@ class YTSrc {
   constructor(player) {
     this.p = player; this.fine = false; this.want = false; this.state = -1;
     this.target = 0; this.lastSeek = -1e9; this.lastFire = -1e9; this.timer = null; this.rate = 1;
+    this.good = 0; this.playAt = -1e9;
   }
+  // an ad shows as "unstarted" (-1) while we want playback; during it the player reports the ad's time and ignores seeks
+  get adLike() { return this.want && this.state === -1; }
+  get inAd() { return this.adLike && now() - this.playAt > 1200; }
   get time() {
     if (now() - this.lastSeek < 500) return this.target;
-    try { return this.p.getCurrentTime() || 0; } catch (e) { return 0; }
+    if (this.adLike) return this.good;
+    let v = 0; try { v = this.p.getCurrentTime() || 0; } catch (e) {}
+    if (this.state === 1 || this.state === 2) this.good = v;
+    return v;
   }
   set time(x) {
     this.target = x; this.lastSeek = now();
@@ -310,8 +319,8 @@ class YTSrc {
     if (now() - this.lastFire > 150) fire(); else this.timer = setTimeout(fire, 150);
   }
   get paused() { return !this.want; }
-  get seeking() { return this.state === 3 || now() - this.lastSeek < 900; }
-  play() { this.want = true; try { this.p.playVideo(); } catch (e) {} }
+  get seeking() { return this.state === 3 || this.adLike || now() - this.lastSeek < 900; }
+  play() { if (!this.want) this.playAt = now(); this.want = true; try { this.p.playVideo(); } catch (e) {} }
   pause() { this.want = false; try { this.p.pauseVideo(); } catch (e) {} }
   setRate(r) {
     let rates = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
@@ -604,13 +613,17 @@ function tick(ts) {
   const dt = Math.min(0.25, (ts - last) / 1000); last = ts;
   if (S.playing && !S.sync) {
     const m = S.angles[S.main], ms = srcs[S.main];
+    let adHold = false;
     if (m.ready && inRange(m, S.t)) {
-      // the main angle is the clock; while it buffers, hold time so the others wait
-      if (!ms.paused && !ms.seeking) S.t = ms.time - m.off;
+      if (ms.inAd) {
+        // YouTube ad on the main angle: hold the others until it ends
+        adHold = true;
+        loaded().forEach(a => { if (a.i !== S.main && !srcs[a.i].paused) srcs[a.i].pause(); });
+      } else if (!ms.paused && !ms.seeking) S.t = ms.time - m.off; // the main angle is the clock; while it buffers, time holds
     } else S.t += dt * S.rate;
     const [, tMax] = range();
     if (S.t >= tMax) { S.t = tMax; pause(); }
-    else loaded().forEach(drive);
+    else if (!adHold) loaded().forEach(drive);
   }
   paint();
   requestAnimationFrame(tick);
@@ -772,7 +785,8 @@ function paint() {
   S.angles.forEach((a, i) => {
     if (!a.ready) return;
     const s = srcs[i];
-    tiles[i].querySelector('.ctime').textContent = fmt(s.time);
+    tiles[i].classList.toggle('ad', !!s.inAd);
+    tiles[i].querySelector('.ctime').textContent = s.inAd ? '広告中（終わるまで待機）' : fmt(s.time);
     tiles[i].classList.toggle('is-oor', !S.sync && !inRange(a, S.t) && Math.abs(S.t + a.off - a.dur) > 0.06);
     if (S.sync) tiles[i].querySelector('.scrub').value = s.time;
   });
