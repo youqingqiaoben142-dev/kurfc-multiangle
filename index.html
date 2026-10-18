@@ -108,11 +108,13 @@ button{cursor:pointer}
 .stage.syncing .rz,.stage.syncing .grip{display:none!important}
 .stage.syncing .tile:not(.main) .nudge{display:none}
 .tile.synchide{display:none}
+.tile.tiny .tbar .lbl,.tile.tiny .tbar .chip2,.tile.tiny .ctime{display:none}
 /* one big picture: the others wait underneath, so switching is instant */
 .tile.offstage{visibility:hidden;pointer-events:none}
-.camchips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin}
-.camchips button{flex:none;display:flex;align-items:center;gap:6px;background:var(--raise);border:1px solid var(--line);border-radius:18px;padding:6px 12px 6px 6px;min-height:36px;font-size:13px;white-space:nowrap}
-.camchips button b{font-family:var(--cond);font-size:13px;min-width:22px;height:22px;line-height:22px;border-radius:11px;background:var(--raise2);text-align:center}
+.camchips{display:grid;grid-template-columns:repeat(var(--cols,3),minmax(0,1fr));gap:6px}
+.camchips button{min-width:0;display:flex;align-items:center;gap:6px;background:var(--raise);border:1px solid var(--line);border-radius:18px;padding:6px 10px 6px 6px;min-height:36px;font-size:13px;white-space:nowrap}
+.camchips button span,.tctl .cams button span{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.camchips button b{flex:none;font-family:var(--cond);font-size:13px;min-width:22px;height:22px;line-height:22px;border-radius:11px;background:var(--raise2);text-align:center}
 .camchips button.on{background:var(--enji);border-color:var(--enji-hi);color:#fff}
 .camchips button.on b{background:var(--tally)}
 @media (max-width:900px){ .camchips button{min-height:44px;font-size:14px} }
@@ -258,14 +260,16 @@ body.theater-on .mbar{display:none!important}
 .tctl button,.tclose{min-height:44px;min-width:44px;background:#000a;border:1px solid #fff4;border-radius:22px;color:#fff;padding:0 14px;font-size:14px;white-space:nowrap}
 .tctl .tplay{width:52px;padding:0;display:grid;place-items:center}
 .tctl .tplay svg{width:18px;height:18px;fill:#fff}
-.tctl .cams{display:flex;gap:6px;overflow-x:auto;flex:1;min-width:0;scrollbar-width:none}
-.tctl .cams button{display:flex;align-items:center;gap:6px;padding:0 12px 0 6px}
+.tctl .cams{display:grid;grid-template-columns:repeat(var(--cols,3),minmax(0,1fr));gap:6px}
+.tctl .cams:empty{display:none}
+.tctl .cams button{min-width:0;display:flex;align-items:center;gap:6px;padding:0 10px 0 6px}
+.tctl .row .grow{flex:1}
 .tctl .cams button b{font-family:var(--cond);min-width:26px;height:26px;line-height:26px;border-radius:13px;background:#fff2;text-align:center}
 .tctl .cams button.on{background:var(--enji);border-color:var(--enji-hi)}
 .tctl .cams button.on b{background:var(--tally)}
 .tctl .tt{font-family:var(--mono);color:#fff;font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .tctl .ttag{background:var(--enji);border-color:var(--enji-hi)}
-@media (max-width:560px){ .tctl .cams button span{display:none} .tctl .cams button{padding:0 6px} .tctl .tt{display:none} }
+@media (max-width:420px){ .tctl .cams button{justify-content:center;padding:0 4px} }
 .mbar{display:none}
 @media (max-width:900px){
   .mbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:20;gap:6px;align-items:center;background:var(--panel);border-top:1px solid var(--line);
@@ -317,6 +321,10 @@ body.theater-on .mbar{display:none!important}
   </header>
 
   <div class="stagewrap">
+    <div class="banner" id="inappbar" hidden>
+      <p><strong>アプリの中のブラウザで開いています。</strong>動画がうまく再生されないことがあります。右上（または右下）のメニューから「ブラウザで開く」「Chromeで開く」「Safariで開く」を選んでください。</p>
+      <button class="btn" id="inappClose">このまま使う</button>
+    </div>
     <div class="banner" id="syncbar" hidden></div>
     <div class="banner" id="reelbar" hidden>
       <p id="reelText"></p>
@@ -341,11 +349,12 @@ body.theater-on .mbar{display:none!important}
     <button class="tclose" id="tClose">× 戻る</button>
     <div class="tctl" id="tctl">
       <div class="prog" id="tProg"><i></i><span id="tMarks"></span><b id="tFill"></b><u id="tHead"></u></div>
+      <div class="cams" id="tCams"></div>
       <div class="row">
         <button class="tplay" id="tPlay" aria-label="再生"><svg viewBox="0 0 16 16"><path d="M3 1.5v13l11-6.5z"/></svg></button>
         <button id="tBack">↺5秒</button>
         <span class="tt" id="tTime">0:00</span>
-        <div class="cams" id="tCams"></div>
+        <span class="grow"></span>
         <button class="ttag" id="tTag">＋タグ</button>
       </div>
     </div>
@@ -373,8 +382,7 @@ body.theater-on .mbar{display:none!important}
       </div>
       <button class="btn" id="light" title="メインだけ再生して通信を軽くする">軽量</button>
       <button class="btn" id="mute" title="音のオン／オフ（M）">音あり</button>
-      <button class="btn" id="bigBtn" title="映像だけを画面いっぱいに（V）">大きく見る</button>
-      <button class="btn" id="fs">全画面</button>
+      <button class="btn" id="fs" title="映像だけを画面いっぱいに（F）">全画面</button>
     </div>
   </section>
 
@@ -413,7 +421,7 @@ body.theater-on .mbar{display:none!important}
       <ol class="howto">
         <li>最初は「1画面」：1本を大きく映し、映像の下のボタンで見たいアングルに切り替えます。左右にスワイプ、下のバーの「◀ 画角／画角 ▶」でも切り替わります</li>
         <li>下のバーで再生・5秒戻し・タグ付け</li>
-        <li>横向きにすると、映像が画面いっぱいになります（縦のままでも「大きく見る」で同じ表示）。操作ボタンは映像の上に重なり、再生中は3秒で消えます。映像をタップすると出てきます。左右スワイプか番号ボタンでアングル切り替え、「× 戻る」で元の画面へ</li>
+        <li>横向きにすると、映像が画面いっぱいになります（縦のままでも「全画面」で同じ表示）。操作ボタンは映像の上に重なり、再生中は3秒で消えます。映像をタップすると出てきます。左右スワイプか番号ボタンでアングル切り替え、「× 戻る」で元の画面へ</li>
         <li>スマホは通信を軽くするため、最初はメインだけ再生します（「軽量：オン」）。全部同時に動かすには「軽量」を押してオフに</li>
       </ol>
       <h3>並べ方と大きさ</h3>
@@ -436,8 +444,7 @@ body.theater-on .mbar{display:none!important}
         <dt><kbd>N</kbd> <kbd>P</kbd></dt><dd>連続再生で次／前のタグへ</dd>
         <dt><kbd>G</kbd> <kbd>S</kbd></dt><dd>並べ方の切り替え／同期を合わせる</dd>
         <dt><kbd>0</kbd></dt><dd>メインの映像の拡大を元に戻す</dd>
-        <dt><kbd>M</kbd> <kbd>F</kbd></dt><dd>消音／全画面（ダブルクリックでも全画面）</dd>
-        <dt><kbd>V</kbd></dt><dd>大きく見る（映像だけを画面いっぱいに）</dd>
+        <dt><kbd>M</kbd> <kbd>F</kbd></dt><dd>音のオン／オフ／全画面（映像だけを画面いっぱいに。ダブルクリックでも）</dd>
         <dt><kbd>Esc</kbd></dt><dd>連続再生・同期合わせ・入力欄を閉じる</dd>
       </dl>
       <h3>YouTubeの広告</h3>
@@ -477,13 +484,24 @@ body.theater-on .mbar{display:none!important}
 <nav class="mbar" id="mbar" hidden>
   <button class="play" id="mPlay" aria-label="再生"><svg viewBox="0 0 16 16"><path d="M3 1.5v13l11-6.5z"/></svg></button>
   <button class="btn" id="mBack">↺ 5秒</button>
-  <button class="btn" id="mBig">大きく見る</button>
+  <button class="btn" id="mBig">全画面</button>
   <button class="btn pri" id="mTag">＋タグ</button>
 </nav>
 <div class="toast" id="toast" role="status"></div>
 
 <script>
 (() => {
+// LINE's built-in browser blocks video playback: hand the page over to the phone's normal browser
+const UA = navigator.userAgent || '';
+const IN_LINE = /\bLine\//i.test(UA);
+const IN_APP = IN_LINE || /FBAN|FBAV|Instagram|Twitter|MicroMessenger/i.test(UA);
+if (IN_LINE && !/[?&]openExternalBrowser=1/.test(location.search)) {
+  try { const u = new URL(location.href); u.searchParams.set('openExternalBrowser', '1'); location.replace(u.toString()); } catch (e) {}
+}
+// tidy the address bar (the hand-over flag is not needed once we're in a normal browser)
+if (!IN_APP && /[?&]openExternalBrowser=1/.test(location.search)) {
+  try { const u = new URL(location.href); u.searchParams.delete('openExternalBrowser'); history.replaceState(null, '', u.pathname + u.search + u.hash); } catch (e) {}
+}
 const MAX = 6;
 const LABELS = ['スタンド中央', 'インゴール裏', 'タッチライン', 'ドローン', 'アングル5', 'アングル6'];
 const TAGS = [
@@ -1066,6 +1084,7 @@ function layoutTiles() {
     a.el.classList.toggle('focusmain', mode === 'focus' && i === S.main && n > 1);
     a.el.classList.toggle('offstage', mode === 'single' && i !== S.main);
   });
+  requestAnimationFrame(() => S.angles.forEach(a => a.el.classList.toggle('tiny', a.el.clientWidth > 0 && a.el.clientWidth < 150)));
   renderChips(mode);
 }
 function renderChips(mode) {
@@ -1074,9 +1093,11 @@ function renderChips(mode) {
   if (S.theater) renderTheaterCams();
   box.hidden = !show; if (!show) return;
   box.innerHTML = '';
+  box.style.setProperty('--cols', Math.min(S.angles.length, wide() ? 6 : 3));
   S.angles.forEach((a, i) => {
     const b = document.createElement('button');
-    b.innerHTML = `<b>${i + 1}</b>${esc(a.label)}`;
+    b.innerHTML = `<b>${i + 1}</b><span>${esc(a.label)}</span>`;
+    b.title = a.label;
     b.classList.toggle('on', i === S.main);
     b.disabled = !a.kind;
     b.addEventListener('click', () => setMain(i));
@@ -1113,7 +1134,7 @@ function startMove(e, a, what) {
   };
   handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', end); handle.addEventListener('pointercancel', end);
 }
-window.addEventListener('resize', () => { layoutTiles(); });
+window.addEventListener('resize', () => { layoutTiles(); if (S.theater) renderTheaterCams(); });
 
 /* ---------- playback & sync engine ---------- */
 function applyAudio() { S.angles.forEach((a, i) => a.src.setMuted((i !== S.main) || S.muted || S.forceMute)); }
@@ -1444,7 +1465,8 @@ async function buildShareUrl(jump) {
     m: S.markers.map(m => [+m.t.toFixed(2), m.tag, m.note || '', m.cam == null ? -1 : m.cam, m.id, m.by || ''])};
   if (jump) obj.j = [+jump.t.toFixed(2), jump.cam == null ? -1 : jump.cam];
   const base = /github\.io$/.test(location.hostname) ? location.origin + location.pathname : PAGES_URL;
-  return base + '#s=' + await encodeShare(obj);
+  // openExternalBrowser=1: when tapped in LINE, it opens in the phone's normal browser instead of LINE's own
+  return base + '?openExternalBrowser=1#s=' + await encodeShare(obj);
 }
 function tagSummary() {
   const c = {}; S.markers.forEach(m => c[m.tag] = (c[m.tag] || 0) + 1);
@@ -1510,7 +1532,7 @@ async function openShared() {
     if (d.j) S.jump = {t: d.j[0], cam: d.j[1] < 0 || map[d.j[1]] == null ? null : map[d.j[1]]};
     applyPlan(slots, markers);
     toast('共有された分析を開きました', 2500);
-    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+    try { history.replaceState(null, '', location.pathname); } catch (e) {}
     return true;
   } catch (e) { toast('共有リンクを読み取れませんでした'); return false; }
 }
@@ -1750,13 +1772,10 @@ function toggleMute() {
 $('#mute').addEventListener('click', toggleMute);
 $('#light').addEventListener('click', () => { setLight(!S.light); toast(S.light ? '軽量：メインだけ再生し、ほかは止めた絵で待機します' : '全部のアングルを同時に再生します', 3000); });
 $('#syncBtn').addEventListener('click', () => S.sync ? cancelSync() : enterSync());
-function toggleFs() {
-  try {
-    if (document.fullscreenElement) document.exitFullscreen();
-    else { const p = document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); if (p) p.catch(() => toast('この環境では全画面にできません')); }
-  } catch (e) { toast('この環境では全画面にできません'); }
-}
+// 全画面 = the picture fills the page (works everywhere) + the browser's own full screen where allowed (hides the address bar)
+function toggleFs() { S.theater ? exitTheater() : enterTheater(false, true); }
 $('#fs').addEventListener('click', toggleFs);
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && S.theater && S.fsByUs) { S.fsByUs = false; exitTheater(); } });
 $('#bulk').addEventListener('click', () => $('#bulkInput').click());
 $('#startFile').addEventListener('click', () => $('#bulkInput').click());
 $('#addFile').addEventListener('click', () => $('#bulkInput').click());
@@ -1816,7 +1835,7 @@ document.addEventListener('keydown', e => {
     case 'KeyF': toggleFs(); return;
     case 'KeyS': S.sync ? cancelSync() : enterSync(); return;
     case 'KeyB': addMarker(TAGS[5]); return;
-    case 'KeyV': S.theater ? exitTheater() : enterTheater(false); return;
+    case 'KeyV': toggleFs(); return;
   }
   if (e.key === ',' || e.key === '<') { S.sync ? nudgeTile(mainA(), -FRAME) : frameStep(-1); }
   else if (e.key === '.' || e.key === '>') { S.sync ? nudgeTile(mainA(), FRAME) : frameStep(1); }
@@ -1827,8 +1846,7 @@ document.addEventListener('keydown', e => {
 
 $('#mPlay').addEventListener('click', () => { if (S.sync) { const a = mainA(); if (a && a.ready) a.src.paused ? a.src.play() : a.src.pause(); } else togglePlay(); });
 $('#mBack').addEventListener('click', replay);
-$('#mBig').addEventListener('click', () => enterTheater(false));
-$('#bigBtn').addEventListener('click', () => S.theater ? exitTheater() : enterTheater(false));
+$('#mBig').addEventListener('click', () => enterTheater(false, true));
 
 /* ---------- big view ---------- */
 let idleT = 0;
@@ -1837,14 +1855,18 @@ function poke() {
   clearTimeout(idleT);
   idleT = setTimeout(() => { if (S.theater && S.playing) $('#app').classList.add('idle'); }, 3000);
 }
-function enterTheater(auto) {
+function enterTheater(auto, real) {
   if (!loaded().length) { toast('先に動画を読み込んでください'); return; }
+  if (real && !document.fullscreenElement) {
+    try { const el = document.documentElement, p = el.requestFullscreen && el.requestFullscreen({navigationUI: 'hide'}); if (p) { S.fsByUs = true; p.catch(() => { S.fsByUs = false; }); } } catch (e) {}
+  }
   if (S.sync) cancelSync();
   S.theater = true; S.theaterAuto = !!auto;
   $('#app').classList.add('theater'); document.body.classList.add('theater-on');
   render(); renderTheaterCams(); poke();
 }
 function exitTheater() {
+  if (document.fullscreenElement && S.fsByUs) { S.fsByUs = false; try { document.exitFullscreen(); } catch (e) {} }
   S.theater = false; S.theaterAuto = false;
   $('#app').classList.remove('theater', 'idle'); document.body.classList.remove('theater-on');
   render();
@@ -1852,9 +1874,12 @@ function exitTheater() {
 function renderTheaterCams() {
   const box = $('#tCams'); box.innerHTML = '';
   if (S.angles.length < 2) return;
+  const W = innerWidth, n = S.angles.length;
+  box.style.setProperty('--cols', W >= 700 ? n : Math.min(n, 3));
   S.angles.forEach((a, i) => {
     const b = document.createElement('button');
     b.innerHTML = `<b>${i + 1}</b><span>${esc(a.label)}</span>`;
+    b.title = a.label;
     b.classList.toggle('on', i === S.main); b.disabled = !a.ready;
     b.addEventListener('click', () => { setMain(i); poke(); });
     box.appendChild(b);
@@ -1898,6 +1923,8 @@ TAGS.forEach(tag => {
 });
 $('#matchTitle').addEventListener('input', e => { S.title = e.target.value.trim(); save(); });
 window.addEventListener('orientationchange', () => setTimeout(() => { render(); if (S.sync) renderSyncBar(); }, 300));
+
+if (IN_APP) { $('#inappbar').hidden = false; $('#inappClose').addEventListener('click', () => { $('#inappbar').hidden = true; }); }
 
 /* ---------- start ---------- */
 setTab(prefs.tab || 'help');
